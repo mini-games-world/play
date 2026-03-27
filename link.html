@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>브릿의 증기 배관: 파이널 매치</title>
+    <style>
+        :root { --accent: #00d2ff; --pipe-bg: #1e293b; --danger: #ef4444; }
+        body { margin: 0; background: #0f172a; overflow: hidden; font-family: 'Malgun Gothic', sans-serif; color: white; user-select: none; touch-action: none; }
+        
+        #header { position: fixed; top: 0; width: 100%; padding: 10px 0; background: #000; z-index: 10; border-bottom: 2px solid #334155; text-align: center; }
+        .gauge-container { width: 90%; height: 10px; background: #1e293b; margin: 5px auto; border-radius: 5px; overflow: hidden; }
+        #gauge-fill { width: 100%; height: 100%; background: linear-gradient(90deg, var(--danger), #f59e0b); transition: width 0.1s linear; }
+        #level-info { font-size: 18px; font-weight: 900; color: var(--accent); }
+
+        /* 게임 영역 레이아웃 */
+        .game-area { display: flex; align-items: center; justify-content: center; height: 100vh; position: relative; padding-top: 40px; }
+        
+        /* 입구/출구 소켓 (그리드 옆에 절대 좌표로 붙음) */
+        .socket { 
+            width: 50px; height: 80px; background: #334155; position: absolute;
+            display: flex; align-items: center; justify-content: center; border-radius: 8px;
+            z-index: 5; font-size: 30px; transition: top 0.3s, left 0.3s, right 0.3s;
+        }
+        .socket span { position: absolute; top: -18px; font-size: 10px; font-weight: bold; color: var(--accent); white-space: nowrap; }
+
+        #grid-wrapper { position: relative; display: inline-block; }
+        #grid { display: grid; gap: 2px; background: #334155; padding: 2px; border: 4px solid #1e293b; }
+
+        /* 배관 픽셀 퍼펙트 */
+        .pipe { width: 80px; height: 80px; background: var(--pipe-bg); cursor: pointer; position: relative; transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1); }
+        .pipe.connected { background: #1c3a4d; box-shadow: inset 0 0 15px var(--accent); }
+        .pipe.connected .line-part { background: var(--accent); box-shadow: 0 0 15px var(--accent); }
+        
+        .line-part { position: absolute; background: #475569; transition: background 0.3s; }
+        .straight-h { width: 100%; height: 20px; top: 30px; left: 0; }
+        .corner-h { width: 50px; height: 20px; top: 30px; left: 0; }
+        .corner-v { width: 20px; height: 50px; left: 30px; top: 30px; }
+
+        .overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.95); display: none; flex-direction: column; align-items: center; justify-content: center; z-index: 100; text-align: center; }
+        .btn-cta { background: #f1c40f; color: #000; padding: 15px 40px; font-size: 20px; border-radius: 50px; border: none; font-weight: 900; cursor: pointer; margin-top: 20px; }
+        .shaking { animation: shake 0.1s infinite; }
+        @keyframes shake { 0% { transform: translate(1px, 1px); } 50% { transform: translate(-1px, -1px); } 100% { transform: translate(1px, 1px); } }
+    </style>
+</head>
+<body id="game-body">
+
+    <div id="header">
+        <div id="level-info">STAGE 1 / 3</div>
+        <div class="gauge-container"><div id="gauge-fill"></div></div>
+    </div>
+
+    <div class="game-area">
+        <div id="grid-wrapper">
+            <div id="socket-in" class="socket"><span>IN ▼</span>🔧</div>
+            
+            <div id="grid"></div>
+
+            <div id="socket-out" class="socket"><span>OUT ▲</span>⚙️</div>
+        </div>
+    </div>
+
+    <div id="fail-ui" class="overlay">
+        <h1 style="color: var(--danger);">수리 실패!</h1>
+        <button class="btn-cta" onclick="location.reload()">재시도</button>
+    </div>
+
+    <div id="final-ui" class="overlay">
+        <h1 style="color: #2ecc71;">마스터 엔지니어!</h1>
+        <div style="font-size: 60px;">🏆🚀✨</div>
+        <p>광산의 모든 배관을 완벽하게 연결했습니다!</p>
+        <button class="btn-cta" onclick="alert('스토어로 이동!')">지금 설치</button>
+    </div>
+
+<script>
+    let currentLevel = 1;
+    let gameActive = true;
+    let timeLeft = 100;
+    let degs = [];
+    
+    const levels = {
+        1: { cols: 3, rows: 4, speed: 0.7, sequence: [0, 1, 2, 5, 4, 3, 6, 7, 8, 11, 10, 9], corners: [2, 5, 3, 6, 8, 11], 
+             answers: { 0:[0,180], 1:[0,180], 2:[0], 5:[90], 4:[0,180], 3:[270], 6:[180], 7:[0,180], 8:[0], 11:[90], 10:[0,180], 9:[0,180] } },
+        2: { cols: 4, rows: 4, speed: 0.9, sequence: [0, 1, 2, 3, 7, 6, 5, 4, 8, 9, 10, 11, 15, 14, 13, 12], corners: [3, 7, 4, 8, 11, 15], 
+             answers: { 0:[0,180], 1:[0,180], 2:[0,180], 3:[0], 7:[90], 6:[0,180], 5:[0,180], 4:[270], 8:[180], 9:[0,180], 10:[0,180], 11:[0], 15:[90], 14:[0,180], 13:[0,180], 12:[0,180] } },
+        3: { cols: 4, rows: 5, speed: 1.1, sequence: [0, 1, 2, 3, 7, 6, 5, 4, 8, 9, 10, 11, 15, 14, 13, 12, 16, 17, 18, 19], corners: [3, 7, 4, 8, 11, 15, 12, 16], 
+             answers: { 0:[0,180], 1:[0,180], 2:[0,180], 3:[0], 7:[90], 6:[0,180], 5:[0,180], 4:[270], 8:[180], 9:[0,180], 10:[0,180], 11:[0], 15:[90], 14:[0,180], 13:[0,180], 12:[270], 16:[180], 17:[0,180], 18:[0,180], 19:[0,180] } }
+    };
+
+    function initLevel(lv) {
+        const config = levels[lv];
+        const gridEl = document.getElementById('grid');
+        gridEl.style.gridTemplateColumns = `repeat(${config.cols}, 80px)`;
+        gridEl.innerHTML = '';
+        degs = [];
+        timeLeft = 100;
+        gameActive = true;
+        document.getElementById('level-info').innerText = `STAGE ${lv} / 3`;
+        document.getElementById('socket-out').innerText = "⚙️";
+        
+        // 소켓 위치 조정 로직
+        const inSocket = document.getElementById('socket-in');
+        const outSocket = document.getElementById('socket-out');
+        
+        // IN: 항상 0번 배관 왼쪽
+        inSocket.style.left = "-52px";
+        inSocket.style.top = "6px"; // 그리드 padding/border 보정
+
+        // OUT: 시퀀스의 마지막 배관 위치 계산
+        const lastPipeIdx = config.sequence[config.sequence.length - 1];
+        const lastRow = Math.floor(lastPipeIdx / config.cols);
+        const lastCol = lastPipeIdx % config.cols;
+        
+        outSocket.style.top = (lastRow * 82 + 6) + "px"; // 행 높이 + 보정
+        if (lastCol === 0) { // 왼쪽에 있을 때
+            outSocket.style.left = "-52px";
+            outSocket.style.right = "auto";
+            outSocket.innerHTML = "<span>OUT ◀</span>⚙️";
+        } else { // 오른쪽에 있을 때
+            outSocket.style.right = "-52px";
+            outSocket.style.left = "auto";
+            outSocket.innerHTML = "<span>OUT ▶</span>⚙️";
+        }
+
+        for (let i = 0; i < config.cols * config.rows; i++) {
+            const pipe = document.createElement('div');
+            pipe.className = 'pipe';
+            pipe.id = `p${i}`;
+            pipe.onclick = () => rotatePipe(i);
+            const isCorner = config.corners.includes(i);
+            pipe.innerHTML = isCorner ? '<div class="line-part corner-h"></div><div class="line-part corner-v"></div>' : '<div class="line-part straight-h"></div>';
+            
+            let randomRot;
+            const lastThree = config.sequence.slice(-3);
+            do { randomRot = [0, 90, 180, 270][Math.floor(Math.random()*4)]; } 
+            while (lastThree.includes(i) && config.answers[i].includes(randomRot));
+
+            degs.push(randomRot);
+            pipe.style.transform = `rotate(${randomRot}deg)`;
+            gridEl.appendChild(pipe);
+        }
+        updateLogic();
+    }
+
+    function rotatePipe(i) {
+        if (!gameActive) return;
+        degs[i] = (degs[i] + 90) % 360;
+        document.getElementById(`p${i}`).style.transform = `rotate(${degs[i]}deg)`;
+        updateLogic();
+    }
+
+    function updateLogic() {
+        const config = levels[currentLevel];
+        const pipes = document.querySelectorAll('.pipe');
+        pipes.forEach(p => p.classList.remove('connected'));
+        
+        let count = 0;
+        for (let i = 0; i < config.sequence.length; i++) {
+            let pIdx = config.sequence[i];
+            if (config.answers[pIdx].includes(degs[pIdx])) {
+                document.getElementById(`p${pIdx}`).classList.add('connected');
+                count++;
+            } else { break; }
+        }
+
+        if (count === config.sequence.length) {
+            gameActive = false;
+            document.getElementById('socket-out').innerText = "🚀";
+            if (currentLevel < 3) { setTimeout(() => { currentLevel++; initLevel(currentLevel); }, 800); } 
+            else { setTimeout(() => document.getElementById('final-ui').style.display = 'flex', 800); }
+        }
+    }
+
+    const timer = setInterval(() => {
+        if (!gameActive) return;
+        timeLeft -= levels[currentLevel].speed;
+        document.getElementById('gauge-fill').style.width = timeLeft + "%";
+        if (timeLeft < 25) document.getElementById('game-body').classList.add('shaking');
+        else document.getElementById('game-body').classList.remove('shaking');
+        if (timeLeft <= 0) { gameActive = false; document.getElementById('fail-ui').style.display = 'flex'; }
+    }, 100);
+
+    initLevel(1);
+</script>
+</body>
+</html>

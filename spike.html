@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>스파이크 가디언: 조작 개선</title>
+    <style>
+        body { margin: 0; background: #050505; overflow: hidden; touch-action: none; font-family: sans-serif; color: white; }
+        canvas { display: block; }
+        #ui { position: fixed; top: 20px; width: 100%; text-align: center; pointer-events: none; z-index: 10; }
+        #stats { font-size: 20px; font-weight: bold; color: #00ffcc; }
+        #gem-count { color: #f1c40f; font-size: 24px; }
+        
+        #shop { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); display: none; flex-direction: column; align-items: center; justify-content: center; z-index: 100; }
+        .upgrade-item { background: #222; padding: 15px; margin: 10px; border-radius: 15px; width: 280px; text-align: center; border: 1px solid #444; }
+        .upgrade-btn { background: #2ecc71; border: none; padding: 10px 20px; color: white; border-radius: 10px; cursor: pointer; font-weight: bold; margin-top: 10px; }
+        
+        #overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 150; }
+        .btn-main { padding: 15px 40px; font-size: 24px; background: #ff4757; color: white; border: none; border-radius: 30px; font-weight: bold; cursor: pointer; }
+        
+        /* 조작 가이드 팁 */
+        #joystick-guide { position: fixed; bottom: 50px; width: 100%; text-align: center; color: rgba(255,255,255,0.3); font-size: 14px; pointer-events: none; }
+    </style>
+</head>
+<body>
+
+    <div id="ui">
+        <div id="stats">LEVEL <span id="lv-num">1</span></div>
+        <div id="gem-count">💎 <span id="gem-num">0</span></div>
+        <div style="font-size: 14px; color: #aaa;">KILLS: <span id="kill-num">0</span> / <span id="req-num">15</span></div>
+    </div>
+
+    <div id="shop">
+        <h2 style="color:#f1c40f;">🚀 영구 강화 상점</h2>
+        <div style="margin-bottom: 20px;">보유 젬: 💎 <span id="shop-gem">0</span></div>
+        <div class="upgrade-item"><div>구슬 크기</div><button class="upgrade-btn" onclick="upgrade('size')">강화 (Cost: 50)</button></div>
+        <div class="upgrade-item"><div>회전 반경</div><button class="upgrade-btn" onclick="upgrade('orbit')">강화 (Cost: 50)</button></div>
+        <div class="upgrade-item"><div>자석 범위</div><button class="upgrade-btn" onclick="upgrade('magnet')">강화 (Cost: 50)</button></div>
+        <button class="btn-main" style="margin-top:20px; background:#3498db;" onclick="restartGame()">다음 스테이지!</button>
+    </div>
+
+    <div id="overlay">
+        <h1 style="color:#00ffcc;">⛓️ SPIKE GUARDIAN</h1>
+        <p>화면 아무데나 문질러서 조종하세요!</p>
+        <button class="btn-main" onclick="startGame()">START</button>
+    </div>
+
+    <div id="joystick-guide">화면을 드래그하여 이동</div>
+    <canvas id="gameCanvas"></canvas>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        
+        // 상태 변수
+        let up_size = 15, up_orbit = 70, up_magnet = 160;
+        let totalGems = 0, currentSessionGems = 0;
+        let level = 1, kills = 0, requiredKills = 15;
+        let active = false, player, balls = [], enemies = [], gems = [], particles = [];
+
+        // 조작 관련 변수 (상대적 좌표 핵심)
+        let mouseSpeed = 0;
+        let isTouching = false;
+        let lastTouchPos = { x: 0, y: 0 };
+
+        function resize() { canvas.width = window.innerWidth; canvas.height = window.innerHeight; }
+        window.addEventListener('resize', resize);
+        resize();
+
+        class Player {
+            constructor() { 
+                this.x = canvas.width / 2; 
+                this.y = canvas.height / 2; 
+                this.radius = 20; 
+                this.angle = 0; 
+                this.targetX = this.x;
+                this.targetY = this.y;
+            }
+            update() {
+                // 부드러운 위치 추적
+                this.x += (this.targetX - this.x) * 0.2;
+                this.y += (this.targetY - this.y) * 0.2;
+                this.angle += 0.08 + (mouseSpeed * 0.001);
+            }
+            draw() {
+                ctx.beginPath(); ctx.arc(this.x, this.y, this.radius, 0, Math.PI*2);
+                ctx.fillStyle = '#00ffcc'; ctx.fill();
+                ctx.shadowBlur = 10; ctx.shadowColor = '#00ffcc';
+            }
+        }
+
+        // --- (이전의 SpikeBall, Enemy, Gem 클래스는 로직 동일하여 생략 가능하나 전체 실행을 위해 포함) ---
+        class SpikeBall {
+            constructor(idx) { this.idx = idx; this.currOrbit = up_orbit; }
+            update(p) {
+                const targetOrbit = up_orbit + (mouseSpeed * 2.5);
+                this.currOrbit += (targetOrbit - this.currOrbit) * 0.1;
+                const a = p.angle + (Math.PI*2 / Math.min(8, 2+Math.floor(level/2))) * this.idx;
+                this.x = p.x + Math.cos(a) * this.currOrbit;
+                this.y = p.y + Math.sin(a) * this.currOrbit;
+            }
+            draw() {
+                ctx.beginPath(); ctx.arc(this.x, this.y, up_size, 0, Math.PI*2);
+                ctx.fillStyle = '#fff'; ctx.fill();
+                ctx.beginPath(); ctx.moveTo(player.x, player.y); ctx.lineTo(this.x, this.y);
+                ctx.strokeStyle = 'rgba(255,255,255,0.2)'; ctx.stroke();
+            }
+        }
+
+        class Enemy {
+            constructor(isGiant = false) { this.isGiant = isGiant; this.reset(); }
+            reset() {
+                const side = Math.floor(Math.random()*4);
+                if(side==0){this.x=Math.random()*canvas.width; this.y=-100;}
+                else if(side==1){this.x=canvas.width+100; this.y=Math.random()*canvas.height;}
+                else if(side==2){this.x=Math.random()*canvas.width; this.y=canvas.height+100;}
+                else {this.x=-100; this.y=Math.random()*canvas.height;}
+                this.size = this.isGiant ? 50 : 15 + Math.random()*10;
+                this.hp = this.isGiant ? 5 : 1;
+                this.speed = (this.isGiant ? 0.6 : 1.2) + (level * 0.2);
+                this.color = this.isGiant ? '#ff4757' : `hsl(${Math.random()*360}, 70%, 60%)`;
+            }
+            update() {
+                const dx = player.x - this.x, dy = player.y - this.y;
+                const d = Math.sqrt(dx*dx+dy*dy);
+                this.x += (dx/d)*this.speed; this.y += (dy/d)*this.speed;
+                if(d < player.radius + this.size - 5) endGame();
+                balls.forEach(b => {
+                    const bd = Math.sqrt(Math.pow(b.x-this.x,2)+Math.pow(b.y-this.y,2));
+                    if(bd < up_size + this.size) {
+                        this.hp--; createParticles(this.x, this.y, this.color, 3);
+                        if(this.hp <= 0) this.die();
+                        else { this.x -= (dx/d)*20; this.y -= (dy/d)*20; }
+                    }
+                });
+            }
+            die() {
+                createParticles(this.x, this.y, this.color, 15);
+                const gemCount = this.isGiant ? 10 : 1;
+                for(let i=0; i<gemCount; i++) gems.push(new Gem(this.x, this.y));
+                kills += this.isGiant ? 5 : 1; if(kills >= requiredKills) nextLevel();
+                this.reset();
+            }
+            draw() {
+                ctx.fillStyle = this.color;
+                ctx.beginPath(); ctx.roundRect(this.x-this.size/2, this.y-this.size/2, this.size, this.size, 5); ctx.fill();
+            }
+        }
+
+        class Gem {
+            constructor(x, y) { this.x = x; this.y = y; this.v = {x:(Math.random()-0.5)*5, y:(Math.random()-0.5)*5}; }
+            update() {
+                const dx = player.x - this.x, dy = player.y - this.y;
+                const d = Math.sqrt(dx*dx+dy*dy);
+                if(d < up_magnet) { this.x += dx * 0.12; this.y += dy * 0.12; }
+                else { this.x += this.v.x; this.y += this.v.y; this.v.x *= 0.95; this.v.y *= 0.95; }
+                if(d < 25) { currentSessionGems++; return true; }
+                return false;
+            }
+            draw() { ctx.fillStyle = '#f1c40f'; ctx.beginPath(); ctx.arc(this.x, this.y, 4, 0, Math.PI*2); ctx.fill(); }
+        }
+
+        function createParticles(x, y, color, count) {
+            for(let i=0; i<count; i++) particles.push({x, y, vx:(Math.random()-0.5)*10, vy:(Math.random()-0.5)*10, life:1, color});
+        }
+
+        // 조작 이벤트 (핵심 로직)
+        function handleInputStart(x, y) {
+            isTouching = true;
+            lastTouchPos = { x, y };
+        }
+
+        function handleInputMove(x, y) {
+            if (!isTouching) return;
+
+            // 이동한 델타값(차이) 계산
+            const dx = x - lastTouchPos.x;
+            const dy = y - lastTouchPos.y;
+
+            // 캐릭터의 목표 위치를 델타만큼 이동 (상대적 조작)
+            player.targetX += dx;
+            player.targetY += dy;
+
+            // 화면 밖으로 나가지 않게 제한
+            player.targetX = Math.max(20, Math.min(canvas.width - 20, player.targetX));
+            player.targetY = Math.max(20, Math.min(canvas.height - 20, player.targetY));
+
+            // 휘두르는 속도 계산 (원심력용)
+            mouseSpeed = Math.sqrt(dx*dx + dy*dy) * 2;
+
+            lastTouchPos = { x, y };
+        }
+
+        function handleInputEnd() {
+            isTouching = false;
+            mouseSpeed = 0;
+        }
+
+        // 리스너 등록
+        window.addEventListener('mousedown', e => handleInputStart(e.clientX, e.clientY));
+        window.addEventListener('mousemove', e => handleInputMove(e.clientX, e.clientY));
+        window.addEventListener('mouseup', handleInputEnd);
+
+        window.addEventListener('touchstart', e => {
+            const t = e.touches[0];
+            handleInputStart(t.clientX, t.clientY);
+        }, { passive: false });
+
+        window.addEventListener('touchmove', e => {
+            const t = e.touches[0];
+            handleInputMove(t.clientX, t.clientY);
+            e.preventDefault(); // 스크롤 방지
+        }, { passive: false });
+
+        window.addEventListener('touchend', handleInputEnd);
+
+        // --- 기타 게임 루프 및 상점 로직 ---
+        function startGame() {
+            document.getElementById('overlay').style.display = 'none';
+            player = new Player();
+            const sc = Math.min(8, 2+Math.floor(level/2));
+            balls = []; for(let i=0; i<sc; i++) balls.push(new SpikeBall(i));
+            enemies = []; for(let i=0; i<10; i++) enemies.push(new Enemy(false));
+            gems = []; particles = []; active = true; loop();
+        }
+
+        function loop() {
+            if(!active) return;
+            ctx.fillStyle = 'rgba(5, 5, 5, 0.4)'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            player.update(); player.draw();
+            balls.forEach(b => { b.update(player); b.draw(); });
+            enemies.forEach(e => { e.update(); e.draw(); });
+            gems = gems.filter(g => !g.update()); gems.forEach(g => g.draw());
+            particles.forEach((p, i) => {
+                p.x+=p.vx; p.y+=p.vy; p.life-=0.03;
+                if(p.life<=0) particles.splice(i,1);
+                ctx.globalAlpha=p.life; ctx.fillStyle=p.color; ctx.fillRect(p.x,p.y,3,3); ctx.globalAlpha=1;
+            });
+
+            if (!isTouching) mouseSpeed *= 0.9; // 손 떼면 속도 서서히 감소
+
+            document.getElementById('gem-num').innerText = totalGems + currentSessionGems;
+            document.getElementById('lv-num').innerText = level;
+            document.getElementById('kill-num').innerText = kills;
+            document.getElementById('req-num').innerText = requiredKills;
+            requestAnimationFrame(loop);
+        }
+
+        function nextLevel() {
+            level++; kills = 0; requiredKills += 10;
+            const sc = Math.min(8, 2+Math.floor(level/2));
+            balls = []; for(let i=0; i<sc; i++) balls.push(new SpikeBall(i));
+            enemies = []; for(let i=0; i<Math.min(20, 8+level); i++) enemies.push(new Enemy(i % 4 === 0 && level > 1));
+        }
+
+        function endGame() {
+            active = false; totalGems += currentSessionGems;
+            document.getElementById('shop-gem').innerText = totalGems;
+            document.getElementById('shop').style.display = 'flex';
+        }
+
+        function upgrade(type) {
+            if(totalGems < 50) return; totalGems -= 50;
+            if(type === 'size') up_size += 5;
+            if(type === 'orbit') up_orbit += 15;
+            if(type === 'magnet') up_magnet += 50;
+            document.getElementById('shop-gem').innerText = totalGems;
+        }
+
+        function restartGame() {
+            document.getElementById('shop').style.display = 'none';
+            currentSessionGems = 0; level = 1; kills = 0; requiredKills = 15;
+            startGame();
+        }
+    </script>
+</body>
+</html>

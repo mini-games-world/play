@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>서바이버 디그: 15개 보석 탈출</title>
+    <style>
+        body { margin: 0; background: #1a0f00; overflow: hidden; font-family: 'Arial Black', sans-serif; touch-action: none; user-select: none; }
+        canvas { display: block; background: #2d1a0a; }
+        
+        .ui-container { position: absolute; top: 0; width: 100%; height: 100%; pointer-events: none; z-index: 10; }
+        .timer-box { font-size: 45px; color: #ff3d00; text-align: center; margin-top: 20px; text-shadow: 0 0 15px #ff0000; }
+        .mission-box { position: absolute; top: 80px; width: 100%; text-align: center; color: #fff; font-size: 20px; text-shadow: 1px 1px 5px #000; }
+        .mission-box span { color: #00f2ff; font-size: 28px; }
+        .fever-msg { position: absolute; top: 40%; width: 100%; text-align: center; color: #ffeb3b; font-size: 55px; font-weight: bold; display: none; animation: zoom 0.3s infinite; text-shadow: 0 0 20px orange; }
+        
+        @keyframes zoom { 0% { transform: scale(1); } 50% { transform: scale(1.15); } 100% { transform: scale(1); } }
+    </style>
+</head>
+<body>
+    <div class="ui-container">
+        <div id="timer" class="timer-box">20.00</div>
+        <div class="mission-box">GOAL: <span id="score">0</span> / 15 💎</div>
+        <div id="fever" class="fever-msg">SUPER DRILL!! 🔥</div>
+    </div>
+    <canvas id="gameCanvas"></canvas>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const timerEl = document.getElementById('timer');
+        const scoreEl = document.getElementById('score');
+        const feverEl = document.getElementById('fever');
+
+        let GRID_SIZE = 65;
+        let map = [];
+        let player = { x: 3, y: 1 };
+        let timeLeft = 20.00;
+        let score = 0, goal = 15, gameOver = false, isFever = false;
+        let monsters = [];
+
+        function init() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            let cols = Math.ceil(canvas.width / GRID_SIZE);
+            let rows = 150;
+
+            for (let y = 0; y < rows; y++) {
+                map[y] = [];
+                for (let x = 0; x < cols; x++) {
+                    let rand = Math.random();
+                    if (y < 2) map[y][x] = 0;
+                    else if (rand < 0.08) map[y][x] = 3; // 폭탄
+                    else if (rand < 0.22) map[y][x] = 2; // 보석 (확률 상향)
+                    else map[y][x] = 1; // 흙
+                }
+            }
+            
+            // 초반 벌레들 스폰 (시작부터 긴장감!)
+            for(let i=0; i<3; i++) {
+                monsters.push({ x: Math.floor(Math.random()*cols), y: 4 + i*2 });
+            }
+            
+            requestAnimationFrame(gameLoop);
+        }
+
+        function gameLoop() {
+            if (!gameOver) {
+                update();
+                draw();
+                requestAnimationFrame(gameLoop);
+            } else {
+                draw();
+            }
+        }
+
+        function update() {
+            timeLeft -= 0.016; 
+            if (timeLeft <= 0) { timeLeft = 0; gameOver = true; }
+            timerEl.innerText = timeLeft.toFixed(2);
+            
+            if (timeLeft < 5) timerEl.style.color = (Math.floor(Date.now()/200) % 2) ? "#fff" : "#ff0000";
+
+            // 추가 벌레 난입 (시간 흐를수록 증가)
+            if (timeLeft < 12 && monsters.length < 6) {
+                monsters.push({ x: Math.floor(Math.random() * map[0].length), y: player.y + 5 });
+            }
+        }
+
+        function move(dx, dy) {
+            if (gameOver) return;
+            let nx = player.x + dx;
+            let ny = player.y + dy;
+
+            if (ny >= 0 && nx >= 0 && nx < map[0].length) {
+                let target = map[ny][nx];
+                if (target === 2) { 
+                    score++; 
+                    if(score === 10) startFever(); // 10개째에 피버!
+                } else if (target === 3 || isFever) {
+                    explode(nx, ny);
+                }
+
+                map[ny][nx] = 0;
+                player.x = nx; player.y = ny;
+
+                // 몬스터 AI (플레이어 추적 강화)
+                monsters.forEach(m => {
+                    if(Math.random() > 0.4) {
+                        m.x += m.x < player.x ? 1 : -1;
+                        m.y += m.y < player.y ? 1 : -1;
+                    }
+                    if(m.x === player.x && m.y === player.y) gameOver = true;
+                });
+                scoreEl.innerText = score;
+                
+                // 목표 달성 시 승리 처리 (옵션: 바로 끝내지 않고 계속 파게 함)
+                if(score >= goal) scoreEl.style.color = "#00ff00";
+            }
+        }
+
+        function startFever() {
+            isFever = true;
+            feverEl.style.display = 'block';
+            setTimeout(() => { isFever = false; feverEl.style.display = 'none'; }, 3000);
+        }
+
+        function explode(x, y) {
+            for(let i=-1; i<=1; i++) {
+                for(let j=-1; j<=1; j++) {
+                    if(map[y+i] && map[y+i][x+j] !== undefined) map[y+i][x+j] = 0;
+                }
+            }
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            let offsetY = Math.max(0, (player.y - 3) * GRID_SIZE);
+            ctx.save();
+            ctx.translate(0, -offsetY);
+
+            for (let y = Math.max(0, player.y - 10); y < player.y + 15; y++) {
+                for (let x = 0; x < map[0].length; x++) {
+                    let cell = map[y][x];
+                    if (cell === 1) {
+                        ctx.fillStyle = '#4e2a12';
+                        ctx.fillRect(x*GRID_SIZE, y*GRID_SIZE, GRID_SIZE-2, GRID_SIZE-2);
+                    } else if (cell === 2) {
+                        ctx.fillStyle = '#00f2ff';
+                        ctx.beginPath(); ctx.arc(x*GRID_SIZE+32, y*GRID_SIZE+32, 14, 0, Math.PI*2); ctx.fill();
+                        ctx.strokeStyle = "white"; ctx.stroke();
+                    } else if (cell === 3) {
+                        ctx.font = "35px Arial"; ctx.fillText("💣", x*GRID_SIZE+10, y*GRID_SIZE+45);
+                    }
+                }
+            }
+
+            ctx.font = "45px Arial";
+            ctx.fillText("🚜", player.x*GRID_SIZE+5, player.y*GRID_SIZE+50);
+            monsters.forEach(m => ctx.fillText("👾", m.x*GRID_SIZE+5, m.y*GRID_SIZE+50));
+
+            ctx.restore();
+
+            if (gameOver) {
+                const isWin = score >= goal && timeLeft > 0;
+                ctx.fillStyle = "rgba(0,0,0,0.85)";
+                ctx.fillRect(0,0,canvas.width, canvas.height);
+                ctx.textAlign = "center";
+                
+                if(isWin) {
+                    ctx.fillStyle = "#00ff00"; ctx.font = "45px Arial Black";
+                    ctx.fillText("MISSION CLEAR!", canvas.width/2, canvas.height/2);
+                } else {
+                    ctx.fillStyle = "#ff3d00"; ctx.font = "45px Arial Black";
+                    ctx.fillText(timeLeft <= 0 ? "TIME OVER!" : "FAILED!", canvas.width/2, canvas.height/2);
+                    ctx.font = "20px Arial"; ctx.fillStyle = "#fff";
+                    ctx.fillText("Need " + (goal - score) + " more Gems!", canvas.width/2, canvas.height/2 + 40);
+                }
+                
+                ctx.font = "22px Arial"; ctx.fillStyle = "#fff";
+                ctx.fillText("TAP TO TRY AGAIN", canvas.width/2, canvas.height/2 + 90);
+            }
+        }
+
+        function handle(ix, iy) {
+            if (gameOver) { location.reload(); return; }
+            let dx = ix - (player.x * GRID_SIZE + 32);
+            let dy = iy - ((player.y - Math.max(0, player.y-3)) * GRID_SIZE + 32);
+            if (Math.abs(dx) > Math.abs(dy)) move(dx > 0 ? 1 : -1, 0);
+            else move(0, dy > 0 ? 1 : -1);
+        }
+
+        window.addEventListener('keydown', (e) => {
+            if(e.key === 'ArrowLeft') move(-1, 0); if(e.key === 'ArrowRight') move(1, 0);
+            if(e.key === 'ArrowUp') move(0, -1); if(e.key === 'ArrowDown') move(0, 1);
+        });
+        canvas.addEventListener('mousedown', (e) => handle(e.clientX, e.clientY));
+        canvas.addEventListener('touchstart', (e) => { e.preventDefault(); handle(e.touches[0].clientX, e.touches[0].clientY); }, {passive:false});
+
+        init();
+        window.onresize = () => { canvas.width = window.innerWidth; canvas.height = window.innerHeight; };
+    </script>
+</body>
+</html>
