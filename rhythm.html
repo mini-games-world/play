@@ -1,0 +1,510 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Squash Mole - Dynamic Start Sound</title>
+    <style>
+        body { margin: 0; overflow: hidden; background: #fefae0; font-family: 'Arial Black', sans-serif; touch-action: none; user-select: none; }
+        canvas { display: block; }
+        
+        /* 인게임 UI */
+        #ui { position: absolute; top: 20px; width: 100%; display: none; z-index: 10; pointer-events: none; }
+        .top-bar { display: flex; justify-content: space-between; align-items: center; padding: 0 30px; font-size: 32px; color: #5e503f; text-shadow: 2px 2px 0 rgba(0,0,0,0.1); }
+        #time-left { color: #e63946; }
+        
+        #guide-text { display: flex; justify-content: center; gap: 40px; margin-top: 10px; }
+        .label { font-size: 24px; color: rgba(94, 80, 63, 0.2); letter-spacing: 3px; transition: all 0.2s ease; }
+        .active-listen { color: #457b9d; transform: scale(1.1); text-shadow: 0 0 10px rgba(69, 123, 157, 0.5); }
+        .active-repeat { color: #e63946; transform: scale(1.1); text-shadow: 0 0 10px rgba(230, 57, 70, 0.5); }
+
+        /* 시작 및 결과 화면 공통 UI */
+        .overlay-screen { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(254, 250, 224, 0.95); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 20; }
+        h1 { font-size: 50px; color: #5e503f; margin-bottom: 10px; text-align: center; line-height: 1.2; }
+        p.subtitle { font-size: 20px; color: #bc6c25; margin-bottom: 30px; }
+        
+        .btn-group { display: flex; flex-direction: column; gap: 10px; width: 300px; max-width: 80%; max-height: 50vh; overflow-y: auto; padding: 10px; }
+        .bpm-btn { padding: 12px 0; font-size: 20px; font-weight: bold; font-family: 'Arial Black', sans-serif; border: none; border-radius: 50px; cursor: pointer; transition: 0.2s; box-shadow: 0 5px 0 #8a5a19; width: 100%; }
+        .btn-120 { background: #e9c46a; color: #5e503f; }
+        .btn-140 { background: #f4a261; color: #fff; }
+        .btn-160 { background: #e63946; color: #fff; box-shadow: 0 5px 0 #9b2226; }
+        .btn-180 { background: #6a040f; color: #fff; box-shadow: 0 5px 0 #370617; }
+        .btn-200 { background: #000; color: #ff003c; border: 2px solid #ff003c; box-shadow: 0 5px 0 #333; text-shadow: 0 0 5px #ff003c; }
+        .bpm-btn:active { transform: translateY(5px); box-shadow: 0 0 0 transparent; }
+
+        /* 테스트 모드 전용 UI */
+        .test-mode-btn { margin-top: 10px; background: #333; color: #00ffcc; box-shadow: 0 5px 0 #000; border: 2px solid #00ffcc; }
+        
+        #test-panel { position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); background: rgba(0, 0, 0, 0.8); padding: 10px 20px; border-radius: 15px; display: none; align-items: center; gap: 10px; z-index: 30; pointer-events: auto; color: white; font-family: sans-serif; white-space: nowrap; border: 2px solid #00ffcc; }
+        #test-panel input { width: 60px; padding: 8px; font-size: 16px; font-weight: bold; text-align: center; border-radius: 8px; border: none; }
+        .test-action-btn { padding: 8px 12px; font-size: 14px; font-weight: bold; cursor: pointer; border-radius: 8px; border: none; background: #00ffcc; color: #000; }
+        .test-action-btn.exit { background: #e63946; color: white; }
+
+        /* 결과 화면 전용 */
+        #result-screen { display: none; }
+        #final-score { font-size: 60px; color: #e63946; margin-bottom: 40px; text-shadow: 2px 2px 0 rgba(0,0,0,0.1); }
+
+        @media (max-width: 600px) {
+            h1 { font-size: 36px; }
+            .top-bar { font-size: 24px; padding: 0 15px; }
+            .label { font-size: 18px; }
+            #guide-text { gap: 20px; }
+            .bpm-btn { font-size: 16px; padding: 10px 0; }
+            #final-score { font-size: 48px; }
+        }
+    </style>
+</head>
+<body>
+    <div id="start-screen" class="overlay-screen">
+        <h1>SQUASH MOLE</h1>
+        <p class="subtitle" id="start-subtitle">-- SECONDS TIME ATTACK!</p>
+        <div class="btn-group">
+            <button class="bpm-btn btn-120" onclick="startGame(120)">EASY (120 BPM)</button>
+            <button class="bpm-btn btn-140" onclick="startGame(140)">NORMAL (140 BPM)</button>
+            <button class="bpm-btn btn-160" onclick="startGame(160)">HARD (160 BPM)</button>
+            <button class="bpm-btn btn-180" onclick="startGame(180)">CRAZY (180 BPM)</button>
+            <button class="bpm-btn btn-200" onclick="startGame(200)">EXTREME (200 BPM)</button>
+            
+            <button id="test-toggle-btn" class="bpm-btn test-mode-btn" onclick="toggleTestMode()">🛠️ 테스트 모드: OFF</button>
+        </div>
+    </div>
+
+    <div id="result-screen" class="overlay-screen">
+        <h1>TIME'S UP!</h1>
+        <div id="final-score">0</div>
+        <div class="btn-group">
+            <button class="bpm-btn btn-120" onclick="returnToMenu()">MAIN MENU</button>
+        </div>
+    </div>
+
+    <div id="ui">
+        <div class="top-bar">
+            <div id="score">SCORE: 0</div>
+            <div id="time-left">--s</div>
+        </div>
+        <div id="guide-text">
+            <div id="label-listen" class="label">LISTEN</div>
+            <div id="label-repeat" class="label">REPEAT!</div>
+        </div>
+    </div>
+
+    <div id="test-panel">
+        <span>Offset(ms):</span>
+        <input type="number" id="offset-input" value="0" step="10">
+        <button class="test-action-btn" onclick="applyAndRestart()">🔄 적용</button>
+        <button class="test-action-btn exit" onclick="returnToMenu()">메뉴</button>
+    </div>
+    
+    <canvas id="gameCanvas"></canvas>
+
+<script>
+    let playDuration = 25;
+    
+    const bgmFiles = {
+        120: "120bpm_The_Mallet_Routine.mp3",
+        140: "140bpm_Checkpoint_Rush.mp3",
+        160: "160bpm_Hardline_Panic.mp3",
+        180: "180bpm_Titan_s_Reckoning.mp3",
+        200: "200bpm_Redline_Momentum.mp3"  
+    };
+// 💡 작성해주신 기준 오프셋
+    const bgmOffsets = {
+        120: 4000, 
+	140: 2000, 
+	160: 900, 
+	180: 9000, 
+	200: 2500  
+    };
+// 💡 곡의 전주(bgmOffset)에 맞게 최적화된 READY 타이밍
+    const readyOffsets = {
+	120: 2000, 
+        140: 0, 
+        160: 0, 
+        180: 5000, 
+        200: 500
+    };
+// 💡 게임 시작 직전(bgmOffset의 약 0.5~1초 전)에 터지는 START 타이밍
+    const startOffsets = {
+	120: 3200, 
+        140: 1200, 
+        160: 500, 
+        180: 8500, 
+        200: 1700
+    };
+
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const scoreEl = document.getElementById('score');
+    const timeEl = document.getElementById('time-left');
+    const uiEl = document.getElementById('ui');
+    const startScreen = document.getElementById('start-screen');
+    const resultScreen = document.getElementById('result-screen');
+    const testPanel = document.getElementById('test-panel');
+    const offsetInput = document.getElementById('offset-input');
+    const testToggleBtn = document.getElementById('test-toggle-btn');
+    const labelListen = document.getElementById('label-listen');
+    const labelRepeat = document.getElementById('label-repeat');
+    const startSubtitle = document.getElementById('start-subtitle');
+
+    let width, height, score = 0, scale = 1;
+    let isStarted = false, isGameOver = false, isTestMode = false;
+    let bpm = 120; 
+    let beatInterval;
+    
+    let audioStartTime = 0; 
+    let playStartTime = 0;  
+    let currentCycleStart = 0;
+    let moles = [];
+    let feedbacks = []; 
+    let audioCtx;
+    let animationId; 
+
+    // 인트로 사운드 재생 여부 체크용 변수
+    let isReadySoundPlayed = false;
+    let isStartSoundPlayed = false;
+
+    let pxPerBeat, listenX, hitX;
+    let hammerSwingTimer = 0;
+
+    const bgmAudio = new Audio();
+    bgmAudio.loop = true;
+    bgmAudio.volume = 0.35; 
+
+    startSubtitle.innerText = `${playDuration} SECONDS TIME ATTACK!`;
+
+    function resize() {
+        width = window.innerWidth;
+        height = window.innerHeight;
+        canvas.width = width;
+        canvas.height = height;
+        scale = Math.max(0.45, Math.min(1, width / 800));
+        listenX = width * 0.15;
+        hitX = width * 0.85;
+        if (isStarted) pxPerBeat = (hitX - listenX) / 4;
+    }
+    window.addEventListener('resize', resize);
+    resize();
+
+    function toggleTestMode() {
+        isTestMode = !isTestMode;
+        testToggleBtn.innerText = isTestMode ? "🛠️ 테스트 모드: ON" : "🛠️ 테스트 모드: OFF";
+        testToggleBtn.style.background = isTestMode ? "#00ffcc" : "#333";
+        testToggleBtn.style.color = isTestMode ? "#000" : "#00ffcc";
+    }
+
+    function applyAndRestart() {
+        bgmOffsets[bpm] = parseInt(offsetInput.value) || 0;
+        bgmAudio.pause();
+        bgmAudio.currentTime = 0;
+        cancelAnimationFrame(animationId);
+        startGame(bpm);
+    }
+
+    function returnToMenu() {
+        isGameOver = true;
+        bgmAudio.pause();
+        bgmAudio.currentTime = 0;
+        cancelAnimationFrame(animationId);
+        testPanel.style.display = 'none';
+        uiEl.style.display = 'none';
+        resultScreen.style.display = 'none';
+        startScreen.style.display = 'flex';
+    }
+
+    function startGame(selectedBpm) {
+        bpm = selectedBpm;
+        beatInterval = (60 / bpm) * 1000;
+        pxPerBeat = (hitX - listenX) / 4; 
+        
+        if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+
+        isStarted = true;
+        isGameOver = false;
+        isReadySoundPlayed = false; // 플래그 초기화
+        isStartSoundPlayed = false;
+        score = 0;
+        scoreEl.innerText = `SCORE: 0`;
+        timeEl.innerText = `${playDuration}s`; 
+        moles = [];
+        feedbacks = []; 
+        
+        startScreen.style.display = 'none';
+        resultScreen.style.display = 'none';
+        uiEl.style.display = 'block';
+        
+        testPanel.style.display = isTestMode ? 'flex' : 'none';
+        if(isTestMode) offsetInput.value = bgmOffsets[bpm] || 0;
+        
+        if (bgmFiles[bpm]) {
+            bgmAudio.src = bgmFiles[bpm];
+            bgmAudio.currentTime = 0;
+            bgmAudio.play().then(() => {
+                const audioDelay = bgmAudio.currentTime * 1000;
+                audioStartTime = performance.now() - audioDelay;
+                playStartTime = audioStartTime + (bgmOffsets[bpm] || 0); 
+                currentCycleStart = playStartTime;
+                generateSequence();
+                animate();
+            }).catch(e => {
+                audioStartTime = performance.now();
+                playStartTime = audioStartTime + (bgmOffsets[bpm] || 0);
+                currentCycleStart = playStartTime;
+                generateSequence();
+                animate();
+            });
+        }
+    }
+
+    // 🔊 READY & START 전용 합성 사운드 함수
+    function playIntroSound(type) {
+        if (!audioCtx || isGameOver) return;
+        const now = audioCtx.currentTime;
+
+        if (type === 'ready') {
+            // "띠-" 하는 짧은 준비음 (3번 연속)
+            [0, 0.1, 0.2].forEach(delay => {
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.type = 'square';
+                osc.frequency.setValueAtTime(440, now + delay);
+                gain.gain.setValueAtTime(0.1, now + delay);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + delay + 0.05);
+                osc.connect(gain); gain.connect(audioCtx.destination);
+                osc.start(now + delay); osc.stop(now + delay + 0.05);
+            });
+        } else if (type === 'start') {
+            // "슈우웅- 빰!" 하는 상승 시작음
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.type = 'triangle';
+            osc.frequency.setValueAtTime(400, now);
+            osc.frequency.exponentialRampToValueAtTime(1200, now + 0.3);
+            gain.gain.setValueAtTime(0.3, now);
+            gain.gain.exponentialRampToValueAtTime(0.01, now + 0.4);
+            osc.connect(gain); gain.connect(audioCtx.destination);
+            osc.start(now); osc.stop(now + 0.4);
+        }
+    }
+
+    function playSound(freq, type = 'sine', duration = 0.1, vol = 0.4) {
+        if (!audioCtx || isGameOver) return;
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = type;
+        osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+        gain.gain.setValueAtTime(vol, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + duration);
+        osc.connect(gain); gain.connect(audioCtx.destination);
+        osc.start(); osc.stop(audioCtx.currentTime + duration);
+    }
+
+    function playPyoongSound(perfect) {
+        if (!audioCtx || isGameOver) return;
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = 'sine'; 
+        const startFreq = perfect ? 600 : 400;
+        const endFreq = perfect ? 1200 : 800;
+        osc.frequency.setValueAtTime(startFreq, audioCtx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(endFreq, audioCtx.currentTime + 0.1); 
+        gain.gain.setValueAtTime(0.6, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.1);
+        osc.connect(gain); gain.connect(audioCtx.destination);
+        osc.start(); osc.stop(audioCtx.currentTime + 0.1);
+    }
+
+    function createFeedback(text, x, color) {
+        feedbacks.push({ text, x, y: height * 0.6 - (50 * scale), alpha: 1.0, color });
+    }
+
+    function generateSequence() {
+        let patterns = [];
+        if (bpm >= 180) {
+            patterns = [[0, 1, 2, 3], [0, 0.5, 1, 1.5, 2, 2.5, 3, 3.5], [0, 0.25, 0.5, 1, 1.5, 2, 2.5, 3], [0, 0.5, 1, 2, 2.5, 3], [0.5, 1, 1.5, 2.5, 3, 3.5], [0, 0.5, 1, 1.5, 2, 3]];
+        } else {
+            patterns = [[0], [2], [0, 2], [0, 3.5], [0, 1, 2, 3], [0, 0.5, 1, 2, 3], [0, 1.5, 2.5, 3], [0, 0.5, 1, 1.5, 2, 2.5, 3, 3.5], [0, 1, 2, 2.5, 3], [0.5, 1.5, 2.5, 3.5], [0, 0.25, 0.5, 1, 2, 3], [0, 0.75, 1.5, 2.25, 3]];
+        }
+        const p = patterns[Math.floor(Math.random() * patterns.length)];
+        p.forEach(beat => {
+            moles.push({ time: currentCycleStart + (beat + 4) * beatInterval, hit: false, missed: false, playedPreview: false });
+        });
+        currentCycleStart += 8 * beatInterval; 
+    }
+
+    function handleInput() {
+        if (!isStarted || isGameOver) return;
+        
+        // 인트로 도중에는 타격 점수 처리를 하지 않음
+        const elapsed = performance.now() - audioStartTime;
+        if (elapsed < (startOffsets[bpm] || 1000)) return;
+
+        const now = performance.now();
+        hammerSwingTimer = now; 
+        let hitProcessed = false;
+        for (let m of moles) {
+            const diff = Math.abs(now - m.time);
+            if (!m.hit && !m.missed && diff < 200) {
+                m.hit = true; hitProcessed = true;
+                const perfect = diff < 80;
+                score += perfect ? 100 : 50;
+                scoreEl.innerText = `SCORE: ${score}`;
+                playPyoongSound(perfect); 
+                createFeedback(perfect ? "PERFECT!" : "GOOD!", hitX, perfect ? "#f4a261" : "#00ffcc");
+                break;
+            }
+        }
+        if (!hitProcessed) {
+            playSound(150, 'sawtooth', 0.05, 0.3);
+            score = Math.max(0, score - 30); 
+            scoreEl.innerText = `SCORE: ${score}`;
+            createFeedback("MISS", hitX, "#e63946");
+        }
+    }
+
+    function endGame() {
+        if (isGameOver) return;
+        isGameOver = true;
+        if (!isTestMode) { uiEl.style.display = 'none'; resultScreen.style.display = 'flex'; }
+        document.getElementById('final-score').innerText = score;
+        bgmAudio.pause();
+    }
+
+    function update() {
+        if (isGameOver) return;
+        const now = performance.now();
+        const elapsed = now - audioStartTime;
+
+        // 🔊 인트로 사운드 트리거 로직
+        if (elapsed >= (readyOffsets[bpm] || 0) && !isReadySoundPlayed) {
+            playIntroSound('ready');
+            isReadySoundPlayed = true;
+        }
+        if (elapsed >= (startOffsets[bpm] || 1000) && !isStartSoundPlayed) {
+            playIntroSound('start');
+            isStartSoundPlayed = true;
+        }
+
+        if (now >= audioStartTime) {
+            let remain = Math.ceil(playDuration - elapsed / 1000);
+            if (remain <= 0) { timeEl.innerText = "0s"; endGame(); return; }
+            timeEl.innerText = remain + "s";
+        }
+
+        if (now >= playStartTime || now < playStartTime) { 
+            let beatsElapsed = (now - playStartTime) / beatInterval;
+            let cyclePhase = ((beatsElapsed % 8) + 8) % 8; 
+            labelListen.className = cyclePhase < 4 ? 'label active-listen' : 'label';
+            labelRepeat.className = cyclePhase < 4 ? 'label' : 'label active-repeat';
+        }
+
+        if (now > currentCycleStart - 4 * beatInterval) generateSequence();
+
+        moles.forEach(m => {
+            const previewTime = m.time - 4 * beatInterval;
+            if (!m.playedPreview && now >= previewTime) { m.playedPreview = true; playSound(330, 'sine', 0.1, 0.3); }
+            if (!m.hit && !m.missed && now > m.time + 200) {
+                m.missed = true;
+                score = Math.max(0, score - 50); 
+                scoreEl.innerText = `SCORE: ${score}`;
+                createFeedback("MISS", hitX, "#e63946");
+            }
+        });
+        moles = moles.filter(m => hitX + ((m.time - now) / beatInterval) * -pxPerBeat < width + 100);
+    }
+
+    function drawHammer(now, roadY) {
+        let angle = Math.PI / 8; 
+        if (hammerSwingTimer > 0) {
+            const elapsed = now - hammerSwingTimer;
+            if (elapsed < 50) angle = Math.PI / 8 - (elapsed / 50) * (Math.PI / 1.5); 
+            else if (elapsed < 150) angle = -Math.PI / 2.5 + ((elapsed - 50) / 100) * (Math.PI / 2.5 + Math.PI / 8);
+            else hammerSwingTimer = 0; 
+        }
+        ctx.save();
+        ctx.translate(hitX + (50 * scale), roadY - (40 * scale)); 
+        ctx.rotate(angle);
+        ctx.scale(scale, scale);
+        ctx.fillStyle = '#d4a373'; ctx.fillRect(-6, -60, 12, 60);
+        ctx.fillStyle = '#e63946'; ctx.fillRect(-25, -85, 50, 35);
+        ctx.fillStyle = '#e9c46a'; ctx.beginPath(); ctx.ellipse(-25, -67.5, 10, 17.5, 0, 0, Math.PI*2); ctx.fill();
+        ctx.beginPath(); ctx.ellipse(25, -67.5, 10, 17.5, 0, 0, Math.PI*2); ctx.fill();
+        ctx.restore();
+    }
+
+    function drawFeedbacks() {
+        for (let i = 0; i < feedbacks.length; i++) {
+            let f = feedbacks[i];
+            ctx.save();
+            ctx.globalAlpha = f.alpha;
+            ctx.fillStyle = f.color;
+            ctx.font = `bold ${32 * scale}px 'Arial Black', sans-serif`; 
+            ctx.textAlign = "center";
+            ctx.strokeStyle = "#333"; ctx.lineWidth = 4 * scale;
+            ctx.strokeText(f.text, f.x, f.y); ctx.fillText(f.text, f.x, f.y);
+            ctx.restore();
+            f.y -= 1.5 * scale; f.alpha -= 0.03; 
+        }
+        feedbacks = feedbacks.filter(f => f.alpha > 0);
+    }
+
+    function drawIntro(now) {
+        if (isGameOver || !isStarted) return;
+        const elapsed = now - audioStartTime;
+        const sOffset = startOffsets[bpm] || 1000;
+        if (elapsed >= sOffset && elapsed < sOffset + 1000) {
+            let progress = (elapsed - sOffset) / 1000;
+            let alpha = 1 - Math.pow(progress, 3);
+            let size = 60 + progress * 40;
+            ctx.save(); ctx.globalAlpha = alpha; ctx.fillStyle = "#ffb703"; ctx.strokeStyle = "#e63946"; ctx.lineWidth = 6 * scale;
+            ctx.font = `bold ${size * scale}px 'Arial Black', sans-serif`; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+            ctx.strokeText("START!", width / 2, height * 0.4); ctx.fillText("START!", width / 2, height * 0.4); ctx.restore();
+        } else if (elapsed >= (readyOffsets[bpm] || 0) && elapsed < sOffset) {
+            let pulse = 1 + 0.05 * Math.sin(elapsed / 80);
+            ctx.save(); ctx.fillStyle = "#fff"; ctx.strokeStyle = "#333"; ctx.lineWidth = 5 * scale;
+            ctx.font = `bold ${50 * pulse * scale}px 'Arial Black', sans-serif`; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+            ctx.strokeText("READY", width / 2, height * 0.4); ctx.fillText("READY", width / 2, height * 0.4); ctx.restore();
+        }
+    }
+
+    function draw() {
+        if (isGameOver && !isTestMode) return; 
+        ctx.fillStyle = '#fefae0'; ctx.fillRect(0, 0, width, height);
+        const roadY = height * 0.6;
+        const now = performance.now();
+        ctx.strokeStyle = '#dda15e'; ctx.lineWidth = 4 * scale; ctx.beginPath(); ctx.moveTo(0, roadY); ctx.lineTo(width, roadY); ctx.stroke();
+        ctx.strokeStyle = 'rgba(94, 80, 63, 0.1)'; ctx.lineWidth = 2 * scale; ctx.setLineDash([10 * scale, 10 * scale]); ctx.beginPath(); ctx.moveTo(width/2, 0); ctx.lineTo(width/2, height); ctx.stroke(); ctx.setLineDash([]);
+        ctx.lineWidth = 5 * scale; ctx.strokeStyle = '#e63946'; ctx.beginPath(); ctx.arc(hitX, roadY, 50 * scale, 0, Math.PI * 2); ctx.stroke(); ctx.fillStyle = 'rgba(230, 57, 70, 0.1)'; ctx.fill();
+        moles.forEach(m => {
+            const x = hitX + ((m.time - now) / beatInterval) * -pxPerBeat;
+            ctx.fillStyle = '#bc6c25'; ctx.beginPath(); ctx.ellipse(x, roadY, 45 * scale, 15 * scale, 0, 0, Math.PI * 2); ctx.fill();
+            const previewDiff = now - (m.time - 4 * beatInterval); 
+            let popUp = Math.abs(previewDiff) < 150 ? Math.cos((previewDiff / 150) * (Math.PI / 2)) * (30 * scale) : 0;
+            ctx.fillStyle = x < width/2 ? '#8d99ae' : '#e63946'; 
+            ctx.strokeStyle = '#2b2d42'; ctx.lineWidth = 2 * scale;
+            if (m.hit) { ctx.beginPath(); ctx.ellipse(x, roadY, 35 * scale, 10 * scale, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+            } else { ctx.beginPath(); ctx.arc(x, roadY - (15 * scale) - popUp, 35 * scale, Math.PI, 0); ctx.lineTo(x + 35 * scale, roadY - (15 * scale) - popUp); ctx.closePath(); ctx.fill(); ctx.stroke();
+                ctx.fillStyle = '#2b2d42'; ctx.beginPath(); ctx.arc(x - (12 * scale), roadY - (20 * scale) - popUp, 3 * scale, 0, Math.PI*2); ctx.fill();
+                ctx.beginPath(); ctx.arc(x + (12 * scale), roadY - (20 * scale) - popUp, 3 * scale, 0, Math.PI*2); ctx.fill();
+            }
+        });
+        drawHammer(now, roadY); drawFeedbacks(); drawIntro(now);
+    }
+
+    function animate() {
+        if(!isStarted) return;
+        update(); draw();
+        if (!isGameOver || isTestMode) animationId = requestAnimationFrame(animate);
+    }
+
+    window.addEventListener('touchstart', (e) => { 
+        if (e.target.tagName === 'BUTTON' || e.target.tagName === 'INPUT') return; 
+        e.preventDefault(); handleInput(); 
+    }, {passive: false});
+    window.addEventListener('mousedown', (e) => { 
+        if (e.target.tagName === 'BUTTON' || e.target.tagName === 'INPUT') return;
+        if (e.button === 0) handleInput(); 
+    });
+</script>
+</body>
+</html>

@@ -1,0 +1,550 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>광산 수레 러시(반응속도 측정기)</title>
+    <style>
+        html, body { 
+            margin: 0; 
+            padding: 0; 
+            width: 100%; 
+            height: 100vh; 
+            background-color: #1a1a1a; 
+            color: #fff; 
+            font-family: 'Malgun Gothic', sans-serif; 
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden; 
+            touch-action: none; 
+        }
+        
+        /* 🚀 핵심 수정 구역: 컨테이너가 항상 2:1 비율을 유지하도록 강제 */
+        #gameContainer {
+            position: relative;
+            /* 가로 96%, 최대 800px, 세로 기준(90vh) 중 가장 작은 값으로 너비 자동 결정 */
+            width: min(96vw, 800px, 90vh); 
+            aspect-ratio: 2 / 1; /* 🚀 가로:세로 = 2:1 비율 완벽 고정 */
+            margin: 0 auto;
+        }
+
+        /* 캔버스는 부모 컨테이너(2:1)의 크기를 100% 따라감 */
+        canvas { 
+            width: 100%; 
+            height: 100%;
+            display: block;
+            background-color: #3e2723; 
+            border: 4px solid #5d4037; 
+            border-radius: 10px;
+            box-sizing: border-box;
+            box-shadow: 0 0 20px rgba(0,0,0,0.8); 
+        }
+
+        .overlay {
+            position: absolute;
+            top: 4px; left: 4px; right: 4px; bottom: 4px; 
+            background: rgba(0, 0, 0, 0.85);
+            border-radius: 6px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 10;
+            text-align: center;
+        }
+
+        .overlay h1 {
+            font-size: clamp(26px, 6vw, 50px);
+            margin-bottom: 10px;
+            color: #ffca28;
+            text-shadow: 2px 2px 4px #000;
+            line-height: 1.2;
+        }
+        .overlay h1 span {
+            font-size: clamp(16px, 4vw, 30px);
+        }
+        .overlay p {
+            font-size: clamp(14px, 3vw, 20px);
+            margin-bottom: 2vh;
+            color: #ccc;
+        }
+        button.start-btn {
+            padding: 2vh 5vw;
+            font-size: clamp(18px, 4vw, 24px);
+            font-weight: bold;
+            color: #fff;
+            background-color: #d84315;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.5);
+            transition: background-color 0.2s;
+        }
+        button.start-btn:hover { background-color: #bf360c; }
+
+        #mobileControls {
+            display: flex;
+            justify-content: center;
+            gap: 6vw; 
+            margin-top: 4vh; 
+        }
+        .controlBtn {
+            width: min(80px, 18vw); 
+            height: min(80px, 18vw);
+            font-size: min(36px, 8vw);
+            color: #fff;
+            background-color: #795548;
+            border: 4px solid #5d4037;
+            border-radius: 50%;
+            cursor: pointer;
+            box-shadow: 0 6px 0 #3e2723;
+            user-select: none;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .controlBtn:active {
+            transform: translateY(6px);
+            box-shadow: none;
+            background-color: #5d4037;
+        }
+        
+        .instructions { 
+            margin-top: 3vh; 
+            color: #aaa; 
+            font-size: clamp(11px, 2.8vw, 14px); 
+            line-height: 1.5; 
+            padding: 0 10px;
+            word-break: keep-all; 
+        }
+    </style>
+</head>
+<body>
+
+    <div id="gameContainer">
+        <canvas id="gameCanvas" width="800" height="400"></canvas>
+        
+        <div id="startScreen" class="overlay">
+            <h1>🚂 광산 수레 러시<br><span style="color: #4fc3f7;">(반응속도 측정기)</span></h1>
+            <p>방향키(↑, ↓) 또는 하단 버튼으로 선로를 이동하세요!</p>
+            <button id="startBtn" class="start-btn">게임 시작</button>
+        </div>
+
+        <div id="gameOverScreen" class="overlay" style="display: none;">
+            <h1 style="color: #ef5350; font-size: clamp(30px, 8vw, 60px);">GAME OVER</h1>
+            <p style="margin-bottom: 10px;">최종 누적 스코어: <strong id="finalScore" style="color: #fff; font-size: clamp(20px, 5vw, 28px);">0</strong> 점</p>
+            <div id="playerRank" style="font-size: clamp(20px, 6vw, 36px); font-weight: bold; margin-bottom: 20px; text-shadow: 2px 2px 4px #000;"></div>
+            <button id="restartBtn" class="start-btn">다시 시작하기</button>
+        </div>
+    </div>
+
+    <div id="mobileControls">
+        <button id="upBtn" class="controlBtn">▲</button>
+        <button id="downBtn" class="controlBtn">▼</button>
+    </div>
+
+    <div class="instructions">
+        <strong>점수:</strong> 💎다이아(+10) 💰황금자루(+3) 🪙동전(+1)<br>
+        <strong>아이템:</strong> 🔩볼트(HP +1) 🛡️쉴드(무적) | <strong>위험:</strong> 🧨다이너마이트(-3) 🐍뱀(-2) 🦇박쥐(-1)
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        const startScreen = document.getElementById('startScreen');
+        const gameOverScreen = document.getElementById('gameOverScreen');
+        const finalScoreText = document.getElementById('finalScore');
+        const playerRankText = document.getElementById('playerRank'); 
+        const startBtn = document.getElementById('startBtn');
+        const restartBtn = document.getElementById('restartBtn');
+
+        const upBtn = document.getElementById('upBtn');
+        const downBtn = document.getElementById('downBtn');
+
+        // --- 오디오 시스템 ---
+        let audioCtx;
+        let bgmInterval;
+
+        function initAudio() {
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            }
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+        }
+
+        function playCoinSound() {
+            if (!audioCtx) return;
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.type = 'square';
+            osc.frequency.setValueAtTime(987.77, audioCtx.currentTime); 
+            osc.frequency.exponentialRampToValueAtTime(1318.51, audioCtx.currentTime + 0.1); 
+            gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.1);
+            
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            osc.start();
+            osc.stop(audioCtx.currentTime + 0.1);
+        }
+
+        function playPowerupSound() {
+            if (!audioCtx) return;
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(400, audioCtx.currentTime); 
+            osc.frequency.linearRampToValueAtTime(800, audioCtx.currentTime + 0.1); 
+            osc.frequency.linearRampToValueAtTime(1200, audioCtx.currentTime + 0.2); 
+            gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+            gain.gain.linearRampToValueAtTime(0.01, audioCtx.currentTime + 0.2);
+            
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            osc.start();
+            osc.stop(audioCtx.currentTime + 0.2);
+        }
+
+        function playHurtSound() {
+            if (!audioCtx) return;
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.type = 'sawtooth';
+            osc.frequency.setValueAtTime(200, audioCtx.currentTime);
+            osc.frequency.exponentialRampToValueAtTime(40, audioCtx.currentTime + 0.3);
+            gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.3);
+            
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            osc.start();
+            osc.stop(audioCtx.currentTime + 0.3);
+        }
+
+        const bgmNotes = [261.63, 329.63, 392.00, 523.25, 392.00, 329.63]; 
+        let noteIdx = 0;
+        function playBGM() {
+            if (!audioCtx || bgmInterval) return;
+            bgmInterval = setInterval(() => {
+                if (state !== 'playing' && state !== 'clear') return;
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.type = 'square';
+                osc.frequency.setValueAtTime(bgmNotes[noteIdx], audioCtx.currentTime);
+                gain.gain.setValueAtTime(0.04, audioCtx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.15);
+                
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                osc.start();
+                osc.stop(audioCtx.currentTime + 0.15);
+                
+                noteIdx = (noteIdx + 1) % bgmNotes.length;
+            }, 180); 
+        }
+
+        function stopBGM() {
+            clearInterval(bgmInterval);
+            bgmInterval = null;
+        }
+
+        // --- 게임 시스템 ---
+        let state = 'ready'; 
+        let stage = 1;
+        let score = 0;       
+        let totalScore = 0;  
+        let hp = 3;
+        const maxHp = 3;
+        let frameCount = 0;
+        let shieldEndTime = 0;
+
+        const trackYs = [100, 200, 300];
+        let player = { track: 1, x: 100 }; 
+        let objects = [];
+
+        const itemDefs = [
+            { type: 'diamond', char: '💎', score: 10, hp: 0, prob: 4 },
+            { type: 'goldbag', char: '💰', score: 3, hp: 0, prob: 15 },
+            { type: 'coin', char: '🪙', score: 1, hp: 0, prob: 42 },
+            { type: 'dynamite', char: '🧨', score: 0, hp: -3, prob: 10 },
+            { type: 'snake', char: '🐍', score: 0, hp: -2, prob: 15, extraSpeed: 3 }, 
+            { type: 'bat', char: '🦇', score: 0, hp: -1, prob: 10, extraSpeed: 5 },
+            { type: 'bolt', char: '🔩', score: 0, hp: 1, prob: 2 },
+            { type: 'shield', char: '🛡️', score: 0, hp: 0, shield: true, prob: 2 }
+        ];
+
+        // 키보드 조작
+        document.addEventListener('keydown', (e) => {
+            if (state !== 'playing') return; 
+            if(['ArrowUp', 'ArrowDown'].includes(e.key)) e.preventDefault();
+            if (e.key === 'ArrowUp' && player.track > 0) player.track--;
+            if (e.key === 'ArrowDown' && player.track < 2) player.track++;
+        });
+
+        // 터치 버튼 조작
+        function movePlayerUp(e) {
+            if(e) e.preventDefault(); 
+            if (state !== 'playing') return;
+            if (player.track > 0) player.track--;
+        }
+
+        function movePlayerDown(e) {
+            if(e) e.preventDefault();
+            if (state !== 'playing') return;
+            if (player.track < 2) player.track++;
+        }
+
+        upBtn.addEventListener('mousedown', movePlayerUp);
+        upBtn.addEventListener('touchstart', movePlayerUp, {passive: false});
+        
+        downBtn.addEventListener('mousedown', movePlayerDown);
+        downBtn.addEventListener('touchstart', movePlayerDown, {passive: false});
+
+        startBtn.addEventListener('click', startGame);
+        restartBtn.addEventListener('click', startGame);
+
+        function startGame() {
+            initAudio(); 
+            
+            stage = 1;
+            score = 0;
+            totalScore = 0;
+            hp = maxHp;
+            shieldEndTime = 0; 
+            objects = [];
+            player.track = 1;
+            frameCount = 0;
+            
+            startScreen.style.display = 'none';
+            gameOverScreen.style.display = 'none';
+            state = 'playing';
+            
+            document.body.focus();
+            playBGM(); 
+        }
+
+        function spawnObject() {
+            let numToSpawn = Math.min(3, Math.floor(stage / 2) + 1);
+            let availableTracks = [0, 1, 2];
+
+            let totalProb = 0;
+            for (let item of itemDefs) {
+                totalProb += item.prob;
+            }
+
+            for (let i = 0; i < numToSpawn; i++) {
+                let randIndex = Math.floor(Math.random() * availableTracks.length);
+                let track = availableTracks.splice(randIndex, 1)[0]; 
+
+                let rand = Math.random() * totalProb;
+                let sum = 0;
+                let selectedItem = itemDefs[0];
+                
+                for (let item of itemDefs) {
+                    sum += item.prob;
+                    if (rand <= sum) {
+                        selectedItem = item;
+                        break;
+                    }
+                }
+                
+                objects.push({
+                    track: track,
+                    x: canvas.width + 50,
+                    ...selectedItem
+                });
+            }
+        }
+
+        function update() {
+            if (state !== 'playing') return;
+            frameCount++;
+            
+            let spawnRate = Math.max(30, 80 - stage * 10); 
+            let moveSpeed = (5 + (stage * 0.8)) * 1.2; 
+
+            if (frameCount % spawnRate === 0) spawnObject();
+
+            let currentTime = Date.now();
+            let isShielded = currentTime < shieldEndTime;
+
+            for (let i = objects.length - 1; i >= 0; i--) {
+                let obj = objects[i];
+                obj.x -= moveSpeed + ((obj.extraSpeed || 0) * 1.2); 
+
+                if (obj.track === player.track && Math.abs(obj.x - player.x) < 40) {
+                    
+                    if (obj.score > 0) {
+                        playCoinSound(); 
+                        score += obj.score;
+                        totalScore += obj.score; 
+                        if (score >= 30) stageClear();
+                    }
+                    
+                    if (obj.hp > 0) {
+                        playPowerupSound();
+                        hp += obj.hp;
+                        if (hp > maxHp) hp = maxHp; 
+                    }
+
+                    if (obj.shield) {
+                        playPowerupSound();
+                        shieldEndTime = Date.now() + 5000; 
+                    }
+
+                    if (obj.hp < 0) {
+                        if (!isShielded) {
+                            playHurtSound(); 
+                            hp += obj.hp; 
+                            if (hp <= 0) {
+                                hp = 0;
+                                gameOver();
+                            }
+                        }
+                    }
+                    
+                    objects.splice(i, 1);
+                    continue;
+                }
+
+                if (obj.x < -50) objects.splice(i, 1);
+            }
+        }
+
+        function stageClear() {
+            state = 'clear';
+            setTimeout(() => {
+                stage++;
+                score = 0; 
+                hp = maxHp; 
+                objects = [];
+                state = 'playing';
+            }, 2000); 
+        }
+
+        function gameOver() {
+            state = 'gameover';
+            finalScoreText.innerText = totalScore;
+            
+            if (totalScore <= 80) {
+                playerRankText.innerText = "반응 속도 폐급 😱";
+                playerRankText.style.color = "#9e9e9e";
+            } else if (totalScore <= 110) {
+                playerRankText.innerText = "반응 속도 틀딱 등급 👴";
+                playerRankText.style.color = "#8d6e63";
+            } else if (totalScore <= 180) { 
+                playerRankText.innerText = "피지컬 브론즈 🥉";
+                playerRankText.style.color = "#cd7f32"; 
+            } else if (totalScore <= 270) { 
+                playerRankText.innerText = "어디서 좀 노는 반응속도 😼";
+                playerRankText.style.color = "#29b6f6"; 
+            } else if (totalScore <= 330) { 
+                playerRankText.innerText = "프로급 반응속도 ⚡";
+                playerRankText.style.color = "#ab47bc"; 
+            } else if (totalScore <= 450) { 
+                playerRankText.innerText = "피지컬 마스터 👑";
+                playerRankText.style.color = "#ffeb3b"; 
+            } else { 
+                playerRankText.innerText = "반응속도의 신 👼✨";
+                playerRankText.style.color = "#ff1744"; 
+            }
+
+            gameOverScreen.style.display = 'flex';
+            stopBGM(); 
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // 선로 그리기
+            ctx.strokeStyle = '#a1887f';
+            ctx.lineWidth = 4;
+            for (let y of trackYs) {
+                ctx.fillStyle = '#271711';
+                ctx.fillRect(0, y - 20, canvas.width, 40);
+                
+                ctx.beginPath();
+                ctx.moveTo(0, y - 10); ctx.lineTo(canvas.width, y - 10);
+                ctx.moveTo(0, y + 10); ctx.lineTo(canvas.width, y + 10);
+                ctx.stroke();
+                
+                for(let i=0; i<canvas.width + 40; i+=40) {
+                    ctx.beginPath();
+                    let offset = (state === 'playing' || state === 'clear') 
+                                 ? (frameCount * (5 + stage*0.8) * 1.2) % 40 : 0;
+                    ctx.moveTo(i - offset, y - 15);
+                    ctx.lineTo(i - offset, y + 15);
+                    ctx.stroke();
+                }
+            }
+
+            // 플레이어 & HP, 쉴드 그리기
+            if (state !== 'gameover' && state !== 'ready') {
+                const drawX = player.x; 
+                const drawY = trackYs[player.track];
+
+                ctx.font = '60px Arial'; 
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText('🚃', drawX, drawY);
+
+                let hpString = '';
+                for(let i = 0; i < maxHp; i++) {
+                    hpString += (i < hp) ? '❤️' : '🖤';
+                }
+                ctx.font = '16px Arial'; 
+                ctx.fillText(hpString, drawX, drawY - 45); 
+
+                if (Date.now() < shieldEndTime) {
+                    ctx.font = '24px Arial'; 
+                    let bobbing = Math.sin(frameCount * 0.1) * 3; 
+                    ctx.fillText('🛡️', drawX, drawY - 70 + bobbing);
+                }
+            }
+
+            // 오브젝트 그리기
+            ctx.font = '40px Arial'; 
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            for (let obj of objects) {
+                ctx.fillText(obj.char, obj.x, trackYs[obj.track]);
+            }
+
+            // 상단 UI 영역
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+            ctx.fillRect(0, 0, canvas.width, 40);
+
+            ctx.fillStyle = '#fff';
+            ctx.font = 'bold 18px Arial';
+            
+            ctx.textAlign = 'left';
+            ctx.fillText(`STAGE: ${stage}`, 15, 20);
+            ctx.fillText(`SCORE: ${score} / 30`, 130, 20);
+            
+            ctx.textAlign = 'right';
+            ctx.fillStyle = '#ffca28';
+            ctx.fillText(`TOTAL SCORE: ${totalScore}`, canvas.width - 15, 20);
+
+            if (state === 'clear') {
+                ctx.fillStyle = 'rgba(76, 175, 80, 0.6)';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                ctx.fillStyle = '#fff';
+                ctx.font = 'bold 50px Arial';
+                ctx.textAlign = 'center';
+                ctx.fillText(`STAGE ${stage} CLEAR!`, canvas.width/2, canvas.height/2 - 10);
+                ctx.font = '24px Arial';
+                ctx.fillText('다음 구역 진입 준비...', canvas.width/2, canvas.height/2 + 35);
+            }
+        }
+
+        function loop() {
+            update();
+            draw();
+            requestAnimationFrame(loop);
+        }
+
+        loop();
+    </script>
+</body>
+</html>
