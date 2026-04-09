@@ -177,7 +177,10 @@
         document.getElementById('gauge-fill').style.width = timeLeft + "%";
         if (timeLeft < 25) document.getElementById('game-body').classList.add('shaking');
         else document.getElementById('game-body').classList.remove('shaking');
-        if (timeLeft <= 0) { gameActive = false; document.getElementById('fail-ui').style.display = 'flex'; }
+        if (timeLeft <= 0) { gameActive = false; 
+	// 이 줄을 추가하세요! (현재 레벨 점수 전송)
+    window.parent.postMessage({ type: 'GAME_OVER', score: currentLevel * 100 }, '*');
+	document.getElementById('fail-ui').style.display = 'flex'; }
     }, 100);
 
     initLevel(1);

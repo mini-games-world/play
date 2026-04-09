@@ -1,122 +1,204 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-
-<!-- Google Tag Manager -->
-<script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
-new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
-j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
-'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
-})(window,document,'script','dataLayer','GTM-WFTKGP2F');</script>
-<!-- End Google Tag Manager -->
-
+    <script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src='https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);})(window,document,'script','dataLayer','GTM-WFTKGP2F');</script>
+    
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title> 미니게임 월드</title>
+    <title>미니게임 월드 - 랭킹 보드</title>
     <style>
-        /* 기본 레이아웃 설정 */
+        /* 기본 레이아웃 */
         body { font-family: 'Pretendard', sans-serif; display: flex; flex-direction: column; height: 100vh; margin: 0; overflow: hidden; background: #eee; }
-        header { background: #333; color: white; padding: 1rem; text-align: center; flex-shrink: 0; font-weight: bold; z-index: 20; }
-        
+        header { background: #333; color: white; padding: 1rem; text-align: center; flex-shrink: 0; font-weight: bold; z-index: 20; position: relative; }
         .main-container { display: flex; flex: 1; overflow: hidden; position: relative; }
 
-        /* [PC] 왼쪽 메뉴 스타일 */
-        nav { 
-            width: 220px; background: #f8f9fa; border-right: 1px solid #ddd; padding: 15px; 
-            display: flex; flex-direction: column; flex-shrink: 0; z-index: 10;
-        }
+        /* 네비게이션 */
+        nav { width: 220px; background: #f8f9fa; border-right: 1px solid #ddd; padding: 15px; display: flex; flex-direction: column; flex-shrink: 0; z-index: 10; }
         .menu-list { flex: 1; overflow-y: auto; }
-        nav h3 { margin-top: 0; font-size: 1rem; color: #555; border-bottom: 2px solid #ddd; padding-bottom: 8px; margin-bottom: 15px; }
-        
-        nav button { 
-            display: block; width: 100%; padding: 12px; margin-bottom: 10px; 
-            cursor: pointer; border: 1px solid #eee; background: white; border-radius: 10px;
-            transition: 0.2s; font-size: 0.95rem; text-align: left;
-        }
+        nav h3 { margin-top: 0; font-size: 1rem; color: #555; border-bottom: 2px solid #ddd; padding-bottom: 8px; margin-bottom: 10px; }
+        nav button { display: block; width: 100%; padding: 12px; margin-bottom: 8px; cursor: pointer; border: 1px solid #eee; background: white; border-radius: 10px; transition: 0.2s; font-size: 0.95rem; text-align: left; }
         nav button:hover { background: #007bff; color: white; }
+        nav button.active { background: #007bff; color: white; border-color: #007bff; }
+        
+        /* 랭킹보드 전용 버튼 */
+        .rank-board-btn { background: #ffd700; font-weight: bold; border: 2px solid #e6b800; }
 
-        /* 방문자 카운터 (PC) */
-        .visitor-counter { padding: 15px 0; text-align: center; border-top: 1px solid #ddd; flex-shrink: 0; }
-        .visitor-counter p { font-size: 11px; color: #888; margin-bottom: 5px; }
+        /* 게임 화면 및 블러 효과 */
+        #welcome_screen { position: absolute; top: 0; right: 0; bottom: 0; left: 220px; display: flex; flex-direction: column; align-items: center; justify-content: center; background: #fff; z-index: 5; text-align: center; }
+        .game-view { flex: 1; border: none; background: #fff; width: 100%; height: 100%; z-index: 1; transition: filter 0.3s ease; }
+        
+        /* 게임오버 시 배경 흐리게 */
+        .blurred { filter: blur(5px) grayscale(50%); pointer-events: none; }
 
-        /* 초기 시작 화면 및 게임 화면 */
-        #welcome_screen {
-            position: absolute; top: 0; right: 0; bottom: 0; left: 220px; 
-            display: flex; flex-direction: column; align-items: center; justify-content: center;
-            background: #fff; z-index: 5; text-align: center;
+        /* 랭킹 등록 및 중앙 다시하기 모달 */
+        #overlay_container {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.7); display: none; 
+            justify-content: center; align-items: center; z-index: 1000;
+            backdrop-filter: blur(2px);
         }
-        .game-view { flex: 1; border: none; background: #fff; width: 100%; height: 100%; z-index: 1; }
+        .modal-content {
+            background: white; padding: 30px; border-radius: 20px; text-align: center;
+            width: 320px; box-shadow: 0 20px 50px rgba(0,0,0,0.5);
+        }
+        .modal-content h2 { margin-top: 0; color: #ff4757; }
+        .modal-content input { width: 90%; padding: 12px; margin: 15px 0; border: 2px solid #ddd; border-radius: 8px; font-size: 16px; outline: none; }
+        .btn-register { width: 100%; padding: 15px; background: #007bff; color: white; border: none; border-radius: 10px; cursor: pointer; font-weight: bold; margin-bottom: 10px; }
+        .btn-restart-big { width: 100%; padding: 15px; background: #2ed573; color: white; border: none; border-radius: 10px; cursor: pointer; font-weight: bold; font-size: 1.1rem; }
 
-        /* ⭐ [모바일 최적화] 핵심 수정 부분 */
+        /* 통합 랭킹보드 화면 */
+        #rank_board_view {
+            position: absolute; top: 0; right: 0; bottom: 0; left: 220px;
+            background: #f1f2f6; z-index: 100; display: none; padding: 40px; overflow-y: auto;
+        }
+        .rank-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 20px; }
+        .rank-card { background: white; padding: 20px; border-radius: 15px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        .rank-card h4 { margin-top: 0; border-bottom: 2px solid #eee; padding-bottom: 10px; display: flex; align-items: center; gap: 8px; }
+        .rank-item { display: flex; justify-content: space-between; padding: 5px 0; border-bottom: 1px solid #f1f1f1; font-size: 14px; }
+        
+        /* 모바일 대응 */
         @media (max-width: 768px) {
-            .main-container { flex-direction: column; }
-            
-            nav { 
-                width: 100%; height: auto; border-right: none; border-bottom: 1px solid #ddd; 
-                padding: 10px; flex-direction: column; /* 메뉴와 카운터를 세로로 배치 */
-            }
-            
-            .menu-list { 
-                display: flex; flex-direction: row; gap: 8px; overflow-x: auto; 
-                width: 100%; padding-bottom: 5px;
-                -webkit-overflow-scrolling: touch; /* 부드러운 스크롤 */
-            }
-            
-            nav h3 { display: none; }
-            nav button { 
-                flex: 0 0 auto; width: auto; margin-bottom: 0; padding: 8px 12px; font-size: 0.85rem;
-            }
-
-            /* 모바일에서 카운터가 잘 보이지 않던 문제 해결 */
-            .visitor-counter { 
-                border-top: none; padding: 5px 0 0 0; text-align: left; width: 100%;
-            }
-            .visitor-counter p { display: none; }
-
-            #welcome_screen { left: 0; z-index: 5; height: 100%; }
+            nav { width: 100%; height: auto; border-right: none; padding: 10px; }
+            .menu-list { display: flex; flex-direction: row; gap: 8px; overflow-x: auto; }
+            nav button { flex: 0 0 auto; width: auto; margin-bottom: 0; }
+            #welcome_screen, #rank_board_view { left: 0; }
+            .rank-grid { grid-template-columns: 1fr; }
         }
     </style>
 </head>
 <body>
-<!-- Google Tag Manager (noscript) -->
-<noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-WFTKGP2F"
-height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
-<!-- End Google Tag Manager (noscript) -->
     <header>🎮 미니게임 월드</header>
 
     <div class="main-container">
         <nav>
             <div class="menu-list">
+                <button class="rank-board-btn" onclick="showRankBoard()">🏆 통합 랭킹보드</button>
                 <h3>게임 목록</h3>
                 <button onclick="changeGame('rabbit.html')">🐰 하늘을 나는 토끼</button>
                 <button onclick="changeGame('escape.html')">🚌 브릿의 광속 탈출</button>
                 <button onclick="changeGame('spike.html')">🐙 스파이크 가디언</button>
-                <button onclick="changeGame('link.html')"> 👩‍🔧 배관 수리</button>
-                <button onclick="changeGame('rhythm.html')">  NEW 🎵 두더지 리듬</button>
-                <button onclick="changeGame('miner_game_v3.html')">  NEW 🚃 마이너 러쉬</button>
-            </div>
-
-            <div class="visitor-counter">
-                <a href="https://mini-games-world.github.io/play/">
-                    <img src="https://endpoint.moe/hits?url=https://mini-games-world.github.io/play&color=007bff&style=flat&label=VISITS" 
-                         alt="방문자 카운터"
-                         onerror="this.src='https://img.shields.io/badge/VISITS-COUNTING-blue'">
-                </a>
+                <button onclick="changeGame('link.html')">👩‍🔧 배관 수리</button>
+                <button onclick="changeGame('rhythm.html')">🎵 두더지 리듬</button>
+                <button onclick="changeGame('miner_game_v3.html')">🚃 마이너 러쉬</button>
             </div>
         </nav>
 
         <div id="welcome_screen">
             <h2>🕹️ 플레이 준비 완료! 🕹️</h2>
-            <p>게임을 선택해 주세요.</p>
+            <p>메뉴에서 게임을 선택하거나 랭킹을 확인하세요.</p>
         </div>
 
         <iframe src="" name="game_frame" id="game_frame" class="game-view"></iframe>
+
+        <div id="rank_board_view">
+            <h2 style="text-align:center; margin-bottom:30px;">🏆 전 종목 TOP 10 랭킹보드</h2>
+            <div class="rank-grid" id="rank_grid_container">
+                </div>
+        </div>
+    </div>
+
+    <div id="overlay_container">
+        <div class="modal-content">
+            <h2>GAME OVER</h2>
+            <p style="font-size: 1.2rem;">점수: <strong id="score_val" style="color:#007bff">0</strong></p>
+            <input type="text" id="nickname" placeholder="닉네임 입력 (2자 이상)">
+            <button class="btn-register" id="reg_btn" onclick="saveRank()">기록 등록하기</button>
+            <hr style="margin:20px 0; border:0; border-top:1px solid #eee;">
+            <button class="btn-restart-big" onclick="restartGame()">🔄 다시하기</button>
+            <button onclick="closeOverlay()" style="margin-top:15px; background:none; border:none; color:#888; cursor:pointer;">나중에 하기</button>
+        </div>
     </div>
 
     <script>
+        let currentScore = 0;
+        let currentGameFile = '';
+        const gameTitles = {
+            'rabbit.html': '🐰 하늘을 나는 토끼',
+            'escape.html': '🚌 브릿의 광속 탈출',
+            'spike.html': '🐙 스파이크 가디언',
+            'link.html': '👩‍🔧 배관 수리',
+            'rhythm.html': '🎵 두더지 리듬',
+            'miner_game_v3.html': '🚃 마이너 러쉬'
+        };
+
+        // 1. 게임 선택 시
         function changeGame(fileName) {
+            currentGameFile = fileName;
+            document.getElementById('rank_board_view').style.display = 'none';
             document.getElementById('welcome_screen').style.display = 'none';
-            document.getElementById('game_frame').src = fileName;
+            
+            const frame = document.getElementById('game_frame');
+            frame.classList.remove('blurred');
+            frame.src = fileName;
+            closeOverlay();
+        }
+
+        // 2. 통합 랭킹보드 보기
+        function showRankBoard() {
+            document.getElementById('welcome_screen').style.display = 'none';
+            document.getElementById('rank_board_view').style.display = 'block';
+            document.getElementById('game_frame').src = ''; // 게임 중단
+            
+            const container = document.getElementById('rank_grid_container');
+            container.innerHTML = '';
+
+            // 등록된 모든 게임 순회하며 카드 생성
+            Object.keys(gameTitles).forEach(file => {
+                const ranks = JSON.parse(localStorage.getItem('ranks_' + file) || '[]');
+                const card = document.createElement('div');
+                card.className = 'rank-card';
+                
+                let listHtml = ranks.length > 0 ? '' : '<p style="color:#999; font-size:13px;">아직 기록이 없습니다.</p>';
+                ranks.forEach((r, i) => {
+                    listHtml += `<div class="rank-item"><span>${i+1}. ${r.nick}</span><b>${r.score.toLocaleString()}</b></div>`;
+                });
+
+                card.innerHTML = `<h4>${gameTitles[file]}</h4>${listHtml}`;
+                container.appendChild(card);
+            });
+        }
+
+        // 3. 게임으로부터 점수 수신 (메시지 리스너)
+        window.addEventListener('message', function(e) {
+            if (e.data.type === 'GAME_OVER') {
+                currentScore = e.data.score;
+                document.getElementById('score_val').innerText = currentScore.toLocaleString();
+                
+                // 배경 흐리게 처리 및 모달 표시
+                document.getElementById('game_frame').classList.add('blurred');
+                document.getElementById('overlay_container').style.display = 'flex';
+                document.getElementById('nickname').value = '';
+                document.getElementById('reg_btn').disabled = false;
+                document.getElementById('reg_btn').innerText = '기록 등록하기';
+            }
+        });
+
+        // 4. 랭킹 저장
+        function saveRank() {
+            const nick = document.getElementById('nickname').value.trim();
+            if (nick.length < 2) return alert("닉네임을 2자 이상 입력해주세요!");
+
+            const storageKey = 'ranks_' + currentGameFile;
+            let ranks = JSON.parse(localStorage.getItem(storageKey) || '[]');
+            ranks.push({ nick: nick, score: currentScore, date: new Date().toLocaleDateString() });
+            ranks.sort((a, b) => b.score - a.score);
+            localStorage.setItem(storageKey, JSON.stringify(ranks.slice(0, 10)));
+            
+            document.getElementById('reg_btn').disabled = true;
+            document.getElementById('reg_btn').innerText = '등록 완료! ✅';
+        }
+
+        // 5. 게임 다시하기
+        function restartGame() {
+            const frame = document.getElementById('game_frame');
+            frame.classList.remove('blurred');
+            frame.src = frame.src; // 새로고침
+            closeOverlay();
+        }
+
+        function closeOverlay() {
+            document.getElementById('overlay_container').style.display = 'none';
+            document.getElementById('game_frame').classList.remove('blurred');
         }
     </script>
 </body>

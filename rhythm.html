@@ -365,6 +365,10 @@
     function endGame() {
         if (isGameOver) return;
         isGameOver = true;
+
+	// 이 줄을 추가하세요!
+    window.parent.postMessage({ type: 'GAME_OVER', score: score }, '*');
+
         if (!isTestMode) { uiEl.style.display = 'none'; resultScreen.style.display = 'flex'; }
         document.getElementById('final-score').innerText = score;
         bgmAudio.pause();

@@ -168,6 +168,10 @@
         gameOverReason = reason;
         player.dy = 12; 
         keys.left = false; keys.right = false; // 죽으면 이동 멈춤
+
+// 이 줄을 추가하세요!
+    window.parent.postMessage({ type: 'GAME_OVER', score: Math.floor(score) }, '*');
+
     }
 
     function update() {

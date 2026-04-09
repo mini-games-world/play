@@ -255,6 +255,10 @@
 
         function endGame() {
             active = false; totalGems += currentSessionGems;
+
+	// 이 줄을 추가하세요!
+    window.parent.postMessage({ type: 'GAME_OVER', score: totalGems }, '*');
+
             document.getElementById('shop-gem').innerText = totalGems;
             document.getElementById('shop').style.display = 'flex';
         }
