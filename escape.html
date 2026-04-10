@@ -206,8 +206,8 @@
     window.addEventListener('touchmove', e => { if(isDrawing) path.push(getPos(e)); e.preventDefault(); }, {passive: false});
     window.addEventListener('touchend', () => isDrawing = false);
 
-	// 게임이 실제로 시작되는 시점에 삽입
-	window.parent.postMessage({ type: 'GAME_ACTUAL_START' }, '*');
+	// [보정] 그리기 시작(게임 시작) 직전에 부모에게 신호 전송
+    window.parent.postMessage({ type: 'GAME_ACTUAL_START' }, '*');
     draw();
 
 </script>

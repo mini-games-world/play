@@ -50,6 +50,9 @@
     let player, platforms, monsters, springs, clouds, score, gameOver, keys, isInvincible, invincibleTimer, gameOverReason;
 
     function initGame() {
+	// [보정] 게임 시작 신호를 함수 시작 시점에 즉시 전송
+        window.parent.postMessage({ type: 'GAME_ACTUAL_START' }, '*');
+
         player = { x: canvas.width / 2 - 15, y: canvas.height - 150, width: 30, height: 30, dy: 0, hp: MAX_HP };
         platforms = []; monsters = []; springs = []; clouds = [];
         score = 0; gameOver = false; isInvincible = false;
