@@ -6,31 +6,48 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>미니게임 월드 - 실시간 팀 랭킹</title>
     <style>
-        /* 기존 스타일 소스 그대로 유지 (생략 없이 통합) */
+        /* [공통 스타일] */
         body { font-family: 'Pretendard', sans-serif; display: flex; flex-direction: column; height: 100vh; margin: 0; overflow: hidden; background: #eee; }
-        header { background: #333; color: white; padding: 1rem; text-align: center; flex-shrink: 0; font-weight: bold; z-index: 20; }
+        header { background: #333; color: white; padding: 0.8rem; text-align: center; flex-shrink: 0; font-weight: bold; z-index: 20; font-size: 1.1rem; }
+        
         .main-container { display: flex; flex: 1; overflow: hidden; position: relative; }
-        nav { width: 220px; background: #f8f9fa; border-right: 1px solid #ddd; padding: 15px; display: flex; flex-direction: column; flex-shrink: 0; z-index: 10; }
-        .menu-list { flex: 1; overflow-y: auto; }
-        nav h3 { margin-top: 0; font-size: 1rem; color: #555; border-bottom: 2px solid #ddd; padding-bottom: 8px; margin-bottom: 10px; }
-        nav button { display: block; width: 100%; padding: 12px; margin-bottom: 8px; cursor: pointer; border: 1px solid #eee; background: white; border-radius: 10px; transition: 0.2s; font-size: 0.95rem; text-align: left; }
+
+        /* [PC 네비게이션: 기본값 왼쪽 고정] */
+        nav { width: 220px; background: #f8f9fa; border-right: 1px solid #ddd; padding: 15px; display: flex; flex-direction: column; flex-shrink: 0; z-index: 10; overflow-y: auto; }
+        nav h3 { margin-top: 15px; font-size: 1rem; color: #555; border-bottom: 2px solid #ddd; padding-bottom: 8px; margin-bottom: 10px; }
+        .menu-list { display: flex; flex-direction: column; gap: 8px; }
+        nav button { width: 100%; padding: 12px; cursor: pointer; border: 1px solid #eee; background: white; border-radius: 10px; transition: 0.2s; font-size: 0.95rem; text-align: left; }
         nav button:hover { background: #007bff; color: white; }
-        .rank-board-btn { background: #ffd700; font-weight: bold; border: 2px solid #e6b800; }
-        #welcome_screen { position: absolute; top: 0; right: 0; bottom: 0; left: 220px; display: flex; flex-direction: column; align-items: center; justify-content: center; background: #fff; z-index: 5; text-align: center; }
-        .game-view { flex: 1; border: none; background: #fff; width: 100%; height: 100%; z-index: 1; transition: filter 0.3s ease; }
+        .rank-board-btn { background: #ffd700; font-weight: bold; border: 2px solid #e6b800; margin-bottom: 10px; }
+
+        /* [콘텐츠 영역] */
+        #content_area { flex: 1; position: relative; background: #fff; }
+        #welcome_screen { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; background: #fff; z-index: 5; text-align: center; padding: 20px; }
+        .game-view { width: 100%; height: 100%; border: none; z-index: 1; transition: filter 0.3s ease; }
         .blurred { filter: blur(5px) grayscale(50%); pointer-events: none; }
-        #overlay_container { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.7); display: none; justify-content: center; align-items: center; z-index: 1000; backdrop-filter: blur(2px); }
-        .modal-content { background: white; padding: 30px; border-radius: 20px; text-align: center; width: 320px; box-shadow: 0 20px 50px rgba(0,0,0,0.5); }
-        .modal-content h2 { margin-top: 0; color: #ff4757; }
-        .modal-content input { width: 90%; padding: 12px; margin: 15px 0; border: 2px solid #ddd; border-radius: 8px; font-size: 16px; outline: none; }
-        .btn-register { width: 100%; padding: 15px; background: #007bff; color: white; border: none; border-radius: 10px; cursor: pointer; font-weight: bold; margin-bottom: 10px; }
-        .btn-restart-big { width: 100%; padding: 15px; background: #2ed573; color: white; border: none; border-radius: 10px; cursor: pointer; font-weight: bold; font-size: 1.1rem; }
-        #rank_board_view { position: absolute; top: 0; right: 0; bottom: 0; left: 220px; background: #f1f2f6; z-index: 100; display: none; padding: 40px; overflow-y: auto; }
+
+        /* [랭킹 보드] */
+        #rank_board_view { position: absolute; inset: 0; background: #f1f2f6; z-index: 100; display: none; padding: 40px; overflow-y: auto; box-sizing: border-box; }
         .rank-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 20px; }
-        .rank-card { background: white; padding: 20px; border-radius: 15px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
-        .rank-card h4 { margin-top: 0; border-bottom: 2px solid #eee; padding-bottom: 10px; }
-        .rank-item { display: flex; justify-content: space-between; padding: 5px 0; border-bottom: 1px solid #f1f1f1; font-size: 14px; }
-        @media (max-width: 768px) { nav { width: 100%; height: auto; border-right: none; padding: 10px; } .menu-list { display: flex; flex-direction: row; gap: 8px; overflow-x: auto; } nav button { flex: 0 0 auto; width: auto; } #welcome_screen, #rank_board_view { left: 0; } .rank-grid { grid-template-columns: 1fr; } }
+        .rank-card { background: white; padding: 15px; border-radius: 15px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        .rank-item { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid #f1f1f1; font-size: 13px; }
+
+        /* [모달 오버레이] */
+        #overlay_container { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.7); display: none; justify-content: center; align-items: center; z-index: 1000; backdrop-filter: blur(2px); }
+        .modal-content { background: white; padding: 25px; border-radius: 20px; text-align: center; width: 85%; max-width: 320px; }
+        .modal-content input { width: 100%; padding: 12px; margin: 15px 0; border: 2px solid #ddd; border-radius: 8px; box-sizing: border-box; }
+        .btn-register { width: 100%; padding: 15px; background: #007bff; color: white; border: none; border-radius: 10px; cursor: pointer; font-weight: bold; }
+        .btn-restart-big { width: 100%; padding: 15px; background: #2ed573; color: white; border: none; border-radius: 10px; cursor: pointer; font-weight: bold; margin-top: 10px; }
+
+        /* [반응형 미디어 쿼리: 모바일] */
+        @media (max-width: 768px) {
+            .main-container { flex-direction: column; }
+            nav { width: 100%; height: auto; border-right: none; border-bottom: 1px solid #ddd; padding: 10px; overflow-y: hidden; }
+            nav h3 { display: none; }
+            .menu-list { flex-direction: row; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+            nav button { width: auto; white-space: nowrap; padding: 10px 18px; }
+            #rank_board_view { padding: 20px; }
+        }
     </style>
 </head>
 <body>
@@ -38,47 +55,46 @@
 
     <div class="main-container">
         <nav>
+            <button class="rank-board-btn" onclick="showRankBoard()">🏆 실시간 랭킹</button>
+            <h3>게임 목록</h3>
             <div class="menu-list">
-                <button class="rank-board-btn" onclick="showRankBoard()">🏆 실시간 랭킹</button>
-                <h3>게임 목록</h3>
-                <button onclick="changeGame('rabbit.html')">🐰 하늘을 나는 토끼</button>
-                <button onclick="changeGame('escape.html')">🚌 브릿의 광속 탈출</button>
-                <button onclick="changeGame('spike.html')">🐙 스파이크 가디언</button>
-                <button onclick="changeGame('link.html')">👩‍🔧 배관 수리</button>
-                <button onclick="changeGame('rhythm.html')">🎵 두더지 리듬</button>
-                <button onclick="changeGame('miner_game_v3.html')">🚃 마이너 러쉬</button>
+                <button onclick="changeGame('rabbit.html')">🐰 토끼</button>
+                <button onclick="changeGame('escape.html')">🚌 탈출</button>
+                <button onclick="changeGame('spike.html')">🐙 스파이크</button>
+                <button onclick="changeGame('link.html')">👩‍🔧 배관</button>
+                <button onclick="changeGame('rhythm.html')">🎵 리듬</button>
+                <button onclick="changeGame('miner_game_v3.html')">🚃 마이너</button>
             </div>
         </nav>
 
-        <div id="welcome_screen">
-            <h2>🕹️ 플레이 준비 완료! 🕹️</h2>
-            <p>팀원들과 실시간 순위를 겨뤄보세요.</p>
-        </div>
+        <div id="content_area">
+            <div id="welcome_screen">
+                <h2>🕹️ 미니게임 월드 🕹️</h2>
+                <p>게임을 선택하여 팀원들과 경쟁해보세요!</p>
+            </div>
 
-        <iframe src="" name="game_frame" id="game_frame" class="game-view"></iframe>
+            <iframe src="" name="game_frame" id="game_frame" class="game-view"></iframe>
 
-        <div id="rank_board_view">
-            <h2 style="text-align:center; margin-bottom:30px;">🏆 실시간 팀 TOP 10</h2>
-            <div class="rank-grid" id="rank_grid_container"></div>
+            <div id="rank_board_view">
+                <h2 style="text-align:center; margin-bottom:30px;">🏆 실시간 팀 TOP 10</h2>
+                <div class="rank-grid" id="rank_grid_container"></div>
+            </div>
         </div>
     </div>
 
     <div id="overlay_container">
         <div class="modal-content">
             <h2>GAME OVER</h2>
-            <p style="font-size: 1.2rem;">점수: <strong id="score_val" style="color:#007bff">0</strong></p>
+            <p>점수: <strong id="score_val" style="color:#007bff">0</strong></p>
             <input type="text" id="nickname" placeholder="닉네임 입력">
             <button class="btn-register" id="reg_btn" onclick="saveRank()">기록 등록하기</button>
-            <hr style="margin:20px 0; border:0; border-top:1px solid #eee;">
             <button class="btn-restart-big" onclick="restartGame()">🔄 다시하기</button>
-            <button onclick="closeOverlay()" style="margin-top:15px; background:none; border:none; color:#888; cursor:pointer;">나중에 하기</button>
+            <button onclick="closeOverlay()" style="margin-top:12px; background:none; border:none; color:#888; cursor:pointer;">닫기</button>
         </div>
     </div>
 
     <script>
-        // ⭐ 배포 완료 후 받은 웹 앱 URL을 아래 큰따옴표 안에 넣으세요!
         const GAS_URL = "https://script.google.com/macros/s/AKfycbzuIQKqdU85NcnQFKT58d2w9ESKyiPmQzoZGWDxrICpJ7MNLnYBL9yJUGRAI24-ML3p/exec";
-
         let currentScore = 0;
         let currentGameFile = '';
         const gameTitles = {
@@ -101,24 +117,34 @@
         }
 
         async function saveRank() {
+// 1. 0점 체크 로직 추가 (이 부분을 맨 위에 넣으세요!)
+    if (currentScore <= 0) {
+        alert("0점은 랭킹에 등록할 수 없습니다. 더 분발하세요! 🔥");
+        return; // 함수 종료 (등록 진행 안 함)
+    }
+
+    const nick = document.getElementById('nickname').value.trim();
+    if (nick.length < 2) return alert("닉네임을 2자 이상 입력해주세요!");
+
+    const regBtn = document.getElementById('reg_btn');
+    regBtn.disabled = true;
+    regBtn.innerText = '전송 중...';
+
             const nick = document.getElementById('nickname').value.trim();
             if (nick.length < 2) return alert("닉네임을 2자 이상 입력해주세요!");
-
             const regBtn = document.getElementById('reg_btn');
             regBtn.disabled = true;
             regBtn.innerText = '전송 중...';
-
             try {
-                // 구글 시트로 데이터 전송
                 await fetch(GAS_URL, {
                     method: "POST",
-                    mode: "no-cors", // 중요: Apps Script CORS 정책 대응
+                    mode: "no-cors",
                     body: JSON.stringify({ game: currentGameFile, nick: nick, score: currentScore })
                 });
                 regBtn.innerText = '등록 완료! ✅';
-                alert("팀 랭킹에 등록되었습니다!");
+                alert("랭킹에 등록되었습니다!");
             } catch (e) {
-                alert("등록 중 오류가 발생했습니다.");
+                alert("오류 발생!");
                 regBtn.disabled = false;
                 regBtn.innerText = '기록 등록하기';
             }
@@ -128,26 +154,23 @@
             document.getElementById('welcome_screen').style.display = 'none';
             document.getElementById('rank_board_view').style.display = 'block';
             document.getElementById('game_frame').src = '';
-            
             const container = document.getElementById('rank_grid_container');
-            container.innerHTML = '<p style="text-align:center; width:100%;">랭킹 데이터를 불러오는 중...</p>';
-
+            container.innerHTML = '<p style="text-align:center; width:100%;">로딩 중...</p>';
             try {
                 const response = await fetch(GAS_URL);
                 const allData = await response.json();
                 container.innerHTML = '';
-
                 Object.keys(gameTitles).forEach(file => {
                     const card = document.createElement('div');
                     card.className = 'rank-card';
                     let gameRanks = allData.filter(i => i.game === file).sort((a,b) => b.score - a.score).slice(0, 10);
-                    let listHtml = gameRanks.length > 0 ? '' : '<p style="color:#999; font-size:13px;">기록이 없습니다.</p>';
+                    let listHtml = gameRanks.length > 0 ? '' : '<p style="color:#999; font-size:13px;">기록 없음</p>';
                     gameRanks.forEach((r, i) => { listHtml += `<div class="rank-item"><span>${i+1}. ${r.nick}</span><b>${r.score.toLocaleString()}</b></div>`; });
                     card.innerHTML = `<h4>${gameTitles[file]}</h4>${listHtml}`;
                     container.appendChild(card);
                 });
             } catch (e) {
-                container.innerHTML = '<p style="text-align:center; color:red;">데이터 로딩 실패!</p>';
+                container.innerHTML = '<p>로딩 실패</p>';
             }
         }
 
