@@ -147,11 +147,9 @@ function initLevel(lv) {
         }
         updateLogic();
 
-	// [수정] 1스테이지 시작 시에만 신호 전송 (지표 중복 방지)
-    if (lv === 1) {
-        window.parent.postMessage({ type: 'GAME_ACTUAL_START' }, '*');
+
     }
-    }
+
 
     function rotatePipe(i) {
         if (!gameActive) return;
