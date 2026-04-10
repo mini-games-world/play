@@ -209,7 +209,10 @@
         });
 
         function restartGame() {
-            gtag('event', 'game_restart', { 'game_title': gameTitles[currentGameFile] });
+            gtag('event', 'game_restart', { 
+		'game_title': gameTitles[currentGameFile]
+		'is_restart': 1 //이 부분을 추가하면 GA4에서 수집됩니다.
+	 });
             const frame = document.getElementById('game_frame');
             frame.classList.remove('blurred'); frame.src = frame.src; closeOverlay();
         }
