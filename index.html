@@ -117,24 +117,20 @@
         }
 
         async function saveRank() {
-// 1. 0점 체크 로직 추가 (이 부분을 맨 위에 넣으세요!)
-    if (currentScore <= 0) {
-        alert("0점은 랭킹에 등록할 수 없습니다. 더 분발하세요! 🔥");
-        return; // 함수 종료 (등록 진행 안 함)
-    }
+            // 1. 0점 체크 로직
+            if (currentScore <= 0) {
+                alert("0점은 랭킹에 등록할 수 없습니다. 더 분발하세요! 🔥");
+                return;
+            }
 
-    const nick = document.getElementById('nickname').value.trim();
-    if (nick.length < 2) return alert("닉네임을 2자 이상 입력해주세요!");
-
-    const regBtn = document.getElementById('reg_btn');
-    regBtn.disabled = true;
-    regBtn.innerText = '전송 중...';
-
-            const nick = document.getElementById('nickname').value.trim();
+            const nickInput = document.getElementById('nickname');
+            const nick = nickInput.value.trim();
             if (nick.length < 2) return alert("닉네임을 2자 이상 입력해주세요!");
+
             const regBtn = document.getElementById('reg_btn');
             regBtn.disabled = true;
             regBtn.innerText = '전송 중...';
+
             try {
                 await fetch(GAS_URL, {
                     method: "POST",
