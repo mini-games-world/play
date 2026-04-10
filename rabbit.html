@@ -59,8 +59,6 @@
         keys = { right: false, left: false };
         gameOverReason = "";
 
-	// --- 아래 내용을 복사해서 넣어주세요 ---
-window.parent.postMessage({ type: 'GAME_ACTUAL_START' }, '*');
 
         // 시작 발판
         platforms.push({ x: canvas.width / 2 - 35, y: canvas.height - 30, width: 70, height: 15, type: 'normal', dx: 0 });
