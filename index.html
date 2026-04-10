@@ -75,7 +75,7 @@
             </div>
             <iframe src="" name="game_frame" id="game_frame" class="game-view"></iframe>
             <div id="rank_board_view">
-                <h2 style="text-align:center; margin-bottom:30px;">🏆 실시간 랭킹 TOP 10</h2>
+                <h2 style="text-align:center; margin-bottom:30px;">🏆 실시간 랭킹 TOP 5</h2>
                 <div class="rank-grid" id="rank_grid_container"></div>
             </div>
         </div>
@@ -91,7 +91,7 @@
                 <button class="btn-restart-big" onclick="restartGame()">🔄 즉시 다시하기</button>
             </div>
             <div id="modal_step_rank" class="hidden">
-                <h2 id="modal_rank_title" style="font-size: 1.2rem; color: #333; margin-top:0;">TOP 10 랭킹</h2>
+                <h2 id="modal_rank_title" style="font-size: 1.2rem; color: #333; margin-top:0;">TOP 5 랭킹</h2>
                 <div id="modal_rank_content" class="modal-rank-list"></div>
                 <button class="btn-restart-big" onclick="restartGame()" style="margin-top:20px;">🔄 다시 도전하기</button>
                 <button onclick="closeOverlay()" style="margin-top:12px; background:none; border:none; color:#888; cursor:pointer;">닫기</button>
@@ -143,12 +143,12 @@
             const rankContent = document.getElementById('modal_rank_content');
             const rankTitle = document.getElementById('modal_rank_title');
             regStep.classList.add('hidden'); rankStep.classList.remove('hidden');
-            rankTitle.innerText = `${gameTitles[currentGameFile]} TOP 10`;
+            rankTitle.innerText = `${gameTitles[currentGameFile]} TOP 5`;
             rankContent.innerHTML = '<p style="text-align:center;">순위 불러오는 중...</p>';
             try {
                 const response = await fetch(GAS_URL);
                 const allData = await response.json();
-                let gameRanks = allData.filter(i => i.game === currentGameFile).sort((a,b) => b.score - a.score).slice(0, 10);
+                let gameRanks = allData.filter(i => i.game === currentGameFile).sort((a,b) => b.score - a.score).slice(0, 5);
                 let listHtml = gameRanks.length === 0 ? '<p style="text-align:center; color:#999;">아직 등록된 기록이 없습니다.</p>' : '';
                 gameRanks.forEach((r, i) => {
                     const isMe = (myNick !== "" && r.nick === myNick && r.score === currentScore);
@@ -170,7 +170,7 @@
                 Object.keys(gameTitles).forEach(file => {
                     const card = document.createElement('div');
                     card.className = 'rank-card';
-                    let gameRanks = allData.filter(i => i.game === file).sort((a,b) => b.score - a.score).slice(0, 10);
+                    let gameRanks = allData.filter(i => i.game === file).sort((a,b) => b.score - a.score).slice(0, 5);
                     let listHtml = gameRanks.length > 0 ? '' : '<p style="color:#999; font-size:13px;">기록 없음</p>';
                     gameRanks.forEach((r, i) => { listHtml += `<div class="rank-item"><span>${i+1}. ${r.nick}</span><b>${r.score.toLocaleString()}</b></div>`; });
                     card.innerHTML = `<h4>${gameTitles[file]}</h4>${listHtml}`;
