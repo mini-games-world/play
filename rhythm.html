@@ -220,6 +220,9 @@
         if (audioCtx.state === 'suspended') audioCtx.resume();
 
         isStarted = true;
+	// 게임이 실제로 시작되는 시점에 삽입
+	window.parent.postMessage({ type: 'GAME_ACTUAL_START' }, '*');
+
         isGameOver = false;
         isReadySoundPlayed = false; // 플래그 초기화
         isStartSoundPlayed = false;

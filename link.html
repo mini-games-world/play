@@ -104,19 +104,20 @@
         
         // IN: 항상 0번 배관 왼쪽
         inSocket.style.left = "-52px";
-        inSocket.style.top = "6px"; // 그리드 padding/border 보정
+        inSocket.style.top = "6px"; 
 
         // OUT: 시퀀스의 마지막 배관 위치 계산
         const lastPipeIdx = config.sequence[config.sequence.length - 1];
         const lastRow = Math.floor(lastPipeIdx / config.cols);
         const lastCol = lastPipeIdx % config.cols;
         
-        outSocket.style.top = (lastRow * 82 + 6) + "px"; // 행 높이 + 보정
-        if (lastCol === 0) { // 왼쪽에 있을 때
+        outSocket.style.top = (lastRow * 82 + 6) + "px"; 
+        if (lastCol === 0) { 
+            outSocket.style.left = "-52px";
             outSocket.style.left = "-52px";
             outSocket.style.right = "auto";
             outSocket.innerHTML = "<span>OUT ◀</span>⚙️";
-        } else { // 오른쪽에 있을 때
+        } else { 
             outSocket.style.right = "-52px";
             outSocket.style.left = "auto";
             outSocket.innerHTML = "<span>OUT ▶</span>⚙️";
@@ -140,6 +141,11 @@
             gridEl.appendChild(pipe);
         }
         updateLogic();
+
+	// [수정] 1스테이지 시작 시에만 신호 전송 (지표 중복 방지)
+    if (lv === 1) {
+        window.parent.postMessage({ type: 'GAME_ACTUAL_START' }, '*');
+    }
     }
 
     function rotatePipe(i) {
@@ -166,8 +172,13 @@
         if (count === config.sequence.length) {
             gameActive = false;
             document.getElementById('socket-out').innerText = "🚀";
-            if (currentLevel < 3) { setTimeout(() => { currentLevel++; initLevel(currentLevel); }, 800); } 
-            else { setTimeout(() => document.getElementById('final-ui').style.display = 'flex', 800); }
+            if (currentLevel < 3) { 
+                setTimeout(() => { currentLevel++; initLevel(currentLevel); }, 800); 
+            } else { 
+                // [추가] 최종 클리어 성공 신호 전송
+                window.parent.postMessage({ type: 'GAME_CLEAR', score: currentLevel * 100 }, '*');
+                setTimeout(() => document.getElementById('final-ui').style.display = 'flex', 800); 
+            }
         }
     }
 
@@ -177,10 +188,12 @@
         document.getElementById('gauge-fill').style.width = timeLeft + "%";
         if (timeLeft < 25) document.getElementById('game-body').classList.add('shaking');
         else document.getElementById('game-body').classList.remove('shaking');
-        if (timeLeft <= 0) { gameActive = false; 
-	// 이 줄을 추가하세요! (현재 레벨 점수 전송)
-    window.parent.postMessage({ type: 'GAME_OVER', score: currentLevel * 100 }, '*');
-	document.getElementById('fail-ui').style.display = 'flex'; }
+        if (timeLeft <= 0) { 
+            gameActive = false; 
+            // [수정] 실패 신호 전송 (기존 내용 확인)
+            window.parent.postMessage({ type: 'GAME_OVER', score: currentLevel * 100 }, '*');
+            document.getElementById('fail-ui').style.display = 'flex'; 
+        }
     }, 100);
 
     initLevel(1);

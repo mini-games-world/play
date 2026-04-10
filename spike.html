@@ -220,7 +220,11 @@
             const sc = Math.min(8, 2+Math.floor(level/2));
             balls = []; for(let i=0; i<sc; i++) balls.push(new SpikeBall(i));
             enemies = []; for(let i=0; i<10; i++) enemies.push(new Enemy(false));
-            gems = []; particles = []; active = true; loop();
+            gems = []; particles = []; 
+	// 게임이 실제로 시작되는 시점에 삽입
+	window.parent.postMessage({ type: 'GAME_ACTUAL_START' }, '*');
+
+	active = true; loop();
         }
 
         function loop() {

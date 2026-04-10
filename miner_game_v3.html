@@ -359,6 +359,8 @@
 
             startScreen.style.display = 'none';
             gameOverScreen.style.display = 'none';
+	// 게임이 실제로 시작되는 시점에 삽입
+	window.parent.postMessage({ type: 'GAME_ACTUAL_START' }, '*');
             state = 'playing';
             
             document.body.focus();

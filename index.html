@@ -109,6 +109,7 @@
     </div>
 
     <script>
+	let gameStartTime = 0;
         const GAS_URL = "https://script.google.com/macros/s/AKfycbzuIQKqdU85NcnQFKT58d2w9ESKyiPmQzoZGWDxrICpJ7MNLnYBL9yJUGRAI24-ML3p/exec";
         let currentScore = 0;
         let currentGameFile = '';
@@ -223,28 +224,62 @@
             }
         }
 
-        window.addEventListener('message', function(e) {
-            if (e.data.type === 'GAME_OVER') {
-                currentScore = e.data.score;
-                document.getElementById('score_val').innerText = currentScore.toLocaleString();
-                document.getElementById('game_frame').classList.add('blurred');
-                
-                // 모달 초기 상태 설정
-                document.getElementById('modal_step_reg').classList.remove('hidden');
-                document.getElementById('modal_step_rank').classList.add('hidden');
-                document.getElementById('overlay_container').style.display = 'flex';
-                
-                document.getElementById('reg_btn').disabled = false;
-                document.getElementById('reg_btn').innerText = '기록 등록하고 순위보기';
-            }
+window.addEventListener('message', function(e) {
+    const data = e.data;
+    const now = Date.now();
+
+    // [추가] 자식 게임에서 '시작' 신호가 왔을 때 시간 기록
+    if (data.type === 'GAME_ACTUAL_START') {
+        gameStartTime = now;
+        gtag('event', 'game_start', {
+            'game_title': gameTitles[currentGameFile],
+            'is_restart': data.isRestart || false
+        });
+    }
+
+    // [수정] 게임이 끝났을 때 점수와 플레이 시간을 GA로 전송
+    if (data.type === 'GAME_OVER' || data.type === 'GAME_CLEAR') {
+        currentScore = data.score;
+        const playTimeSec = gameStartTime > 0 ? Math.floor((now - gameStartTime) / 1000) : 0;
+        const result = (data.type === 'GAME_CLEAR') ? 'success' : 'fail';
+
+        // GA4로 데이터 전송
+        gtag('event', 'game_end', {
+            'game_title': gameTitles[currentGameFile],
+            'play_time_sec': playTimeSec,
+            'result': result,
+            'score': currentScore
         });
 
-        function restartGame() {
-            const frame = document.getElementById('game_frame');
-            frame.classList.remove('blurred');
-            frame.src = frame.src;
-            closeOverlay();
+        // 10초 이내 종료 시 조기 이탈로 기록
+        if (playTimeSec > 0 && playTimeSec <= 10) {
+            gtag('event', 'game_early_leave', {
+                'game_title': gameTitles[currentGameFile],
+                'play_time_sec': playTimeSec
+            });
         }
+
+        // 기존 화면 처리 (모달 띄우기)
+        document.getElementById('score_val').innerText = currentScore.toLocaleString();
+        document.getElementById('game_frame').classList.add('blurred');
+        document.getElementById('modal_step_reg').classList.remove('hidden');
+        document.getElementById('modal_step_rank').classList.add('hidden');
+        document.getElementById('overlay_container').style.display = 'flex';
+        document.getElementById('reg_btn').disabled = false;
+        document.getElementById('reg_btn').innerText = '기록 등록하고 순위보기';
+    }
+});
+	function restartGame() {
+	   // [추가] 재시작 버튼 클릭 추적
+	   gtag('event', 'game_restart', {
+	       'game_title': gameTitles[currentGameFile]
+	   });
+
+    const frame = document.getElementById('game_frame');
+    frame.classList.remove('blurred');
+    frame.src = frame.src;
+    closeOverlay();
+}
 
         function closeOverlay() {
             document.getElementById('overlay_container').style.display = 'none';
