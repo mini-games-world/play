@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>광산 탈출</title>
+    <style>
+        :root { --accent: #f1c40f; --danger: #ff4757; }
+        body { margin: 0; background: #1a1a1a; overflow: hidden; touch-action: none; font-family: 'Malgun Gothic', sans-serif; color: white; user-select: none; }
+        canvas { display: block; background: #231912; }
+        #ui { position: fixed; top: 20px; width: 100%; text-align: center; pointer-events: none; z-index: 10; }
+        #distance { font-size: 28px; font-weight: 900; color: var(--accent); text-shadow: 2px 2px 8px #000; }
+        .overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); display: none; flex-direction: column; align-items: center; justify-content: center; z-index: 100; text-align: center; }
+        .btn-cta { background: var(--accent); color: #000; padding: 18px 50px; font-size: 24px; border-radius: 50px; border: none; font-weight: 900; cursor: pointer; margin-top: 20px; box-shadow: 0 6px 0 #948106; }
+        #warning { color: var(--danger); font-weight: bold; font-size: 16px; animation: blink 0.3s infinite; display: none; }
+        @keyframes blink { 0% { opacity: 1; } 50% { opacity: 0; } 100% { opacity: 1; } }
+
+	/* 카운트다운 UI 스타일 */
+        #countdown-ui { display: flex; background: rgba(0,0,0,0.85); }
+        #countdown-text { color: var(--accent); font-size: 100px; margin: 0; text-shadow: 0 0 20px rgba(241, 196, 15, 0.5); }
+        #countdown-desc { font-size: 22px; color: #fff; margin-top: 15px; font-weight: bold; }
+
+    </style>
+</head>
+<body>
+
+    <div id="ui">
+        <div id="distance">탈출까지: <span id="dist-val">150</span>m</div>
+        <div id="warning">🚨 위험! 낙석 및 TNT 주의! 🚨</div>
+        <div style="font-size:14px; color:#ccc; margin-top:5px;">빨리 탈출로를 그려 광산을 탈출하세요!</div>
+    </div>
+
+<audio id="gameBgm" loop preload="auto">
+        <source src="160bpm_Hardline_Panic.mp3" type="audio/mpeg">
+    </audio>
+
+    <canvas id="gameCanvas"></canvas>
+
+	<div id="countdown-ui" class="overlay">
+        <h1 id="countdown-text">3</h1>
+        <p id="countdown-desc">탈출로를 그려서 탈출하세요!</p>
+    </div>
+
+
+    <div id="fail-ui" class="overlay">
+        <h1 id="fail-title" style="color: var(--danger); font-size: 45px; margin: 0;">탈출 실패!</h1>
+        <p id="fail-reason" style="font-size: 18px; color: #bdc3c7;"></p>
+        <button class="btn-cta" onclick="location.reload()">다시 설계하기</button>
+    </div>
+
+    <div id="victory-ui" class="overlay">
+        <h1 style="color: var(--accent); font-size: 45px; margin: 0;">탈출 성공!</h1>
+        <p style="font-size: 18px;">최고의 엔지니어이시군요!</p>
+        <button class="btn-cta" onclick="alert('스토어로 이동!')">정식 게임 다운로드</button>
+    </div>
+
+<script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+
+let gameActive = true;
+    /* 💡 추가된 부분 2: 카운트다운 종료 후 게임 진행 상태를 관리하는 변수 */
+    let isStarted = false; 
+    let isDrawing = false;
+    let path = [];
+    let scrollX = 0;
+    let scrollSpeed = 4.0; 
+    let distance = 150;
+    
+// 시작 위치를 화면 안쪽(y: 100)으로 변경하여 카운트다운 동안 대기하도록 설정
+    let cart = { x: 150, y: 100, vx: 0, vy: 0, rot: 0 }; 
+    let deathWallX = -400; 
+
+    let rocks = [];
+    let dynamites = [];
+
+// TNT 배치
+    for(let i = 1; i < 6; i++) {
+        dynamites.push({
+            x: 500 + (i * 600),
+            y: 200 + Math.random() * (canvas.height - 400),
+            size: 60
+        });
+    }
+
+
+    function draw() {
+        if (!gameActive) return;
+
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+/* 💡 수정된 부분 2: 게임이 시작된(isStarted) 후에만 화면 이동 및 거리 감소 적용 */
+        if (isStarted) {
+            scrollX += scrollSpeed;
+            distance -= 0.15;
+            deathWallX += scrollSpeed + 0.8; // 드릴 추격
+        }
+
+        document.getElementById('dist-val').innerText = Math.max(0, Math.floor(distance));
+        
+        ctx.save();
+        ctx.translate(-scrollX, 0);
+
+        // 드릴 추격
+        ctx.fillStyle = '#444';
+        ctx.fillRect(deathWallX - 1000, 0, 1000, canvas.height);
+        ctx.fillStyle = '#666';
+        for(let i=0; i<canvas.height; i+=50) {
+            ctx.beginPath();
+            ctx.moveTo(deathWallX, i); ctx.lineTo(deathWallX + 40, i+25); ctx.lineTo(deathWallX, i+50); ctx.fill();
+        }
+
+        // 낙석 생성 (빈도 높임)
+	/* 💡 수정된 부분 2: 게임 시작 후에만 낙석 생성 */
+        if(isStarted && Math.random() < 0.04) {
+            rocks.push({
+                x: scrollX + canvas.width + Math.random() * 100,
+                y: -100,
+                speed: 5 + Math.random() * 6,
+                size: 25 + Math.random() * 25
+            });
+        }
+
+
+        // TNT 그리기 및 충돌
+        dynamites.forEach(dyna => {
+            ctx.fillStyle = '#e74c3c';
+            ctx.fillRect(dyna.x, dyna.y, dyna.size, dyna.size);
+            ctx.fillStyle = 'white';
+            ctx.font = 'bold 16px Arial';
+            ctx.textAlign = 'center';
+            ctx.fillText("TNT", dyna.x + dyna.size/2, dyna.y + dyna.size/2 + 5);
+            
+            if(Math.abs(cart.x - (dyna.x + dyna.size/2)) < 40 && Math.abs(cart.y - (dyna.y + dyna.size/2)) < 40) {
+                endGame(false, "TNT가 폭발했습니다!");
+            }
+        });
+
+        // 낙석 업데이트
+        rocks.forEach((rock, idx) => {
+	/* 💡 수정된 부분 2: 게임 시작 후에만 낙하 */
+            if (isStarted) rock.y += rock.speed;
+
+            ctx.font = rock.size + "px Arial";
+            ctx.fillText("🪨", rock.x, rock.y);
+
+            if(Math.sqrt((cart.x - rock.x)**2 + (cart.y - rock.y)**2) < rock.size + 15) {
+                endGame(false, "낙석에 직격당했습니다!");
+            }
+            if(rock.y > canvas.height + 100) rocks.splice(idx, 1);
+        });
+
+ // 레일 그리기 (카운트다운 중에도 그릴 수 있도록 외부에 유지)
+        if (path.length > 1) {
+            ctx.strokeStyle = '#f1c40f';
+            ctx.lineWidth = 12;
+            ctx.lineCap = 'round';
+            ctx.beginPath();
+            ctx.moveTo(path[0].x, path[0].y);
+            for(let i=1; i<path.length; i++) ctx.lineTo(path[i].x, path[i].y);
+            ctx.stroke();
+        }
+
+	// 물리 업데이트 (중력)
+        /* 💡 수정된 부분 2: 카운트다운 3초 동안은 중력과 이동을 멈춤 */
+        if (isStarted) {
+            cart.vy += 0.5;
+            cart.x += cart.vx;
+            cart.y += cart.vy;
+
+            let onRail = false;
+            for (let i = 0; i < path.length - 1; i++) {
+                let p1 = path[i], p2 = path[i+1];
+
+                if (cart.x > Math.min(p1.x, p2.x) && cart.x < Math.max(p1.x, p2.x)) {
+                    let ratio = (cart.x - p1.x) / (p2.x - p1.x);
+                    let lineY = p1.y + ratio * (p2.y - p1.y);
+
+		/* 💡 수정할 부분: 충돌 판정 범위를 위아래로 대폭 넓혀줍니다! */
+		    // 기존: if (cart.y + 15 > lineY && cart.y < lineY + 40) {
+                    if (cart.y + 100 > lineY && cart.y < lineY + 200) {
+
+
+                        cart.y = lineY - 15;
+			cart.vy = 0;
+                        cart.rot = Math.atan2(p2.y - p1.y, p2.x - p1.x);
+                        onRail = true;
+                        
+                        /* 💡 수정된 부분 3: 캐릭터(카트) 속도를 화면 스크롤 속도와 동일하게 일치 (기존 +1.8 제거) */
+                        cart.vx = scrollSpeed+2.0; 
+                    }
+                }
+            }
+            if(!onRail) {
+                cart.rot += 0.1;
+                cart.vx *= 0.99; 
+            }
+        }
+        // 캐릭터
+        ctx.save();
+        ctx.translate(cart.x, cart.y);
+        ctx.rotate(cart.rot);
+        ctx.font = "45px Arial"; ctx.textAlign = "center";
+        ctx.fillText("🛒", 0, 15); ctx.fillText("👷‍♀️", 0, -15);
+        ctx.restore();
+
+        ctx.restore();
+
+// 긴박함 연출 & 종료 조건
+        /* 💡 수정된 부분 2: 카운트다운 중 사망 처리 방지 */
+        if (isStarted) {
+            if(cart.x - deathWallX < 350) document.getElementById('warning').style.display = 'block';
+            else document.getElementById('warning').style.display = 'none';
+
+            if (cart.x < deathWallX + 40) endGame(false, "드릴에 따라잡혔습니다!");
+            if (cart.y > canvas.height + 200) endGame(false, "광산 깊은 곳으로 추락했습니다!");
+            if (distance <= 0) endGame(true);
+        }
+
+        requestAnimationFrame(draw);
+    }
+
+
+    function endGame(win, reason) {
+        if (!gameActive) return;
+        gameActive = false;
+
+/* 💡 추가된 부분: 게임 종료 시 BGM 일시정지 */
+        if(bgmStarted) bgm.pause();
+
+        if (win) document.getElementById('victory-ui').style.display = 'flex';
+        else {
+	// 이 줄을 추가하세요!
+        window.parent.postMessage({ type: 'GAME_OVER', score: Math.floor(150 - distance) * 10 }, '*');
+
+            document.getElementById('fail-reason').innerText = reason;
+            document.getElementById('fail-ui').style.display = 'flex';
+        }
+    }
+
+    const getPos = (e) => {
+        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+        const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+        return { x: clientX + scrollX, y: clientY };
+    };
+
+
+/* 💡 추가된 부분: 첫 터치 시 BGM을 재생하기 위한 변수 */
+    let bgmStarted = false;
+    const bgm = document.getElementById('gameBgm');
+
+    function startBgm() {
+        if (!bgmStarted) {
+            bgm.volume = 0.5; // 볼륨 조절 (0.0 ~ 1.0)
+            bgm.play().catch(e => console.log("오디오 재생 대기 중..."));
+            bgmStarted = true;
+        }
+    }
+
+
+
+/* 💡 수정된 부분: 터치/클릭 시작 시 startBgm() 호출 추가 */
+    window.addEventListener('mousedown', e => { startBgm(); isDrawing = true; path.push(getPos(e)); });
+    window.addEventListener('mousemove', e => { if(isDrawing) path.push(getPos(e)); });
+    window.addEventListener('mouseup', () => isDrawing = false);
+    window.addEventListener('touchstart', e => { startBgm(); isDrawing = true; path.push(getPos(e)); e.preventDefault(); }, {passive: false});
+    window.addEventListener('touchmove', e => { if(isDrawing) path.push(getPos(e)); e.preventDefault(); }, {passive: false});
+    window.addEventListener('touchend', () => isDrawing = false);
+
+
+	/* 💡 추가된 부분 2: 3초 카운트다운 타이머 로직 */
+    let countdown = 3;
+    let countInterval = setInterval(() => {
+        countdown--;
+        if (countdown > 0) {
+            document.getElementById('countdown-text').innerText = countdown;
+        } else {
+            clearInterval(countInterval);
+            document.getElementById('countdown-ui').style.display = 'none';
+            isStarted = true; // 카운트다운 완료 시 게임 로직 활성화
+
+
+	// [보정] 그리기 시작(게임 시작) 직전에 부모에게 신호 전송
+    window.parent.postMessage({ type: 'GAME_ACTUAL_START' }, '*');
+}
+    }, 1000);
+
+
+
+    draw();
+
+</script>
+</body>
+</html>
