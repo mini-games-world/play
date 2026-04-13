@@ -100,6 +100,8 @@
     </div>
     <script>
         let gameStartTime = 0;
+	let rankBoardStartTime = 0; // [추가] 랭킹보드 체류 시간 측정용 변수
+
         const GAS_URL = "https://script.google.com/macros/s/AKfycbzuIQKqdU85NcnQFKT58d2w9ESKyiPmQzoZGWDxrICpJ7MNLnYBL9yJUGRAI24-ML3p/exec";
         let currentScore = 0;
         let currentGameFile = '';
@@ -115,6 +117,19 @@
         };
 
         function changeGame(fileName) {
+// [추가] 만약 랭킹 보드를 보고 있었다면 체류 시간 전송
+            if (rankBoardStartTime > 0) {
+                const stayTime = Math.floor((Date.now() - rankBoardStartTime) / 1000);
+                if (stayTime > 0) {
+                    gtag('event', 'menu_stay_time', {
+                        'menu_name': '실시간_랭킹_보드',
+                        'stay_sec': stayTime
+                    });
+                }
+                rankBoardStartTime = 0; // 초기화
+            }
+
+
             currentGameFile = fileName;
             document.getElementById('rank_board_view').style.display = 'none';
             document.getElementById('welcome_screen').style.display = 'none';
@@ -159,6 +174,13 @@
         }
 
         async function showRankBoard() {
+	// [수정] 메뉴 클릭 및 체류 시작 시간 기록
+            rankBoardStartTime = Date.now();
+            gtag('event', 'menu_click', {
+                'menu_name': '실시간_랭킹_보드',
+                'page_location': window.location.href
+            });
+
             document.getElementById('welcome_screen').style.display = 'none';
             document.getElementById('rank_board_view').style.display = 'block';
             document.getElementById('game_frame').src = '';
@@ -179,28 +201,39 @@
             } catch (e) { container.innerHTML = '<p>로딩 실패</p>'; }
         }
 
-        window.addEventListener('message', function(e) {
-            const data = e.data;
+// 메시지 수신 이벤트 통합 수정
+        window.addEventListener('message', function(event) {
+	const data = event.data; // event 객체에서 data 추출
             const now = Date.now();
-            if (data.type === 'GAME_ACTUAL_START') {
+            // 현재 게임 제목을 미리 변수에 할당 (값이 없으면 '미선택' 등으로 표시)
+            const currentGameTitle = gameTitles[currentGameFile] || '게임 미선택';
+
+            if (data.type === 'GAME_START') {
                 gameStartTime = now;
-                // [수정] gtag 즉시 실행
-                gtag('event', 'game_start', { 'game_title': gameTitles[currentGameFile] });
+                // [수정] 제목이 없을 경우를 대비해 기본값 설정
+                gtag('event', 'game_start', { 'game_title': currentGameTitle });
             }
+            
             if (data.type === 'GAME_OVER' || data.type === 'GAME_CLEAR') {
                 currentScore = data.score;
                 const playTimeSec = gameStartTime > 0 ? Math.floor((now - gameStartTime) / 1000) : 0;
                 const result = (data.type === 'GAME_CLEAR') ? 'success' : 'fail';
-                // [수정] gtag 즉시 실행
+                
+                // [수정] game_end 이벤트 시에도 안전하게 제목 전달
                 gtag('event', 'game_end', {
-                    'game_title': gameTitles[currentGameFile],
+                    'game_title': currentGameTitle,
                     'play_time_sec': playTimeSec,
                     'result': result,
                     'score': currentScore
                 });
+
                 if (playTimeSec > 0 && playTimeSec <= 10) {
-                    gtag('event', 'game_early_leave', { 'game_title': gameTitles[currentGameFile], 'play_time_sec': playTimeSec });
+                    gtag('event', 'game_early_leave', { 
+                        'game_title': currentGameTitle, 
+                        'play_time_sec': playTimeSec 
+                    });
                 }
+                
                 document.getElementById('score_val').innerText = currentScore.toLocaleString();
                 document.getElementById('game_frame').classList.add('blurred');
                 document.getElementById('modal_step_reg').classList.remove('hidden');
@@ -210,7 +243,6 @@
                 document.getElementById('reg_btn').innerText = '기록 등록하고 순위보기';
             }
         });
-
         function restartGame() {
             gtag('event', 'game_restart', { 
 		'game_title': gameTitles[currentGameFile],
