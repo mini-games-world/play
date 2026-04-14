@@ -120,12 +120,13 @@
         };
 
         function changeGame(fileName) {
-// [추가] 만약 랭킹 보드를 보고 있었다면 체류 시간 전송
+
             if (rankBoardStartTime > 0) {
                 const stayTime = Math.floor((Date.now() - rankBoardStartTime) / 1000);
                 if (stayTime > 0) {
                     gtag('event', 'menu_stay_time', {
                         'menu_name': '실시간_랭킹_보드',
+			'game_title': '🏆 메인 로비 (랭킹 보드)',
                         'stay_sec': stayTime
                     });
                 }
@@ -183,10 +184,10 @@
         }
 
         async function showRankBoard() {
-	// [수정] 메뉴 클릭 및 체류 시작 시간 기록
             rankBoardStartTime = Date.now();
             gtag('event', 'menu_click', {
                 'menu_name': '실시간_랭킹_보드',
+		'game_title': '🏆 메인 로비 (랭킹 보드)',
                 'page_location': window.location.href
             });
 
