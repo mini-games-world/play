@@ -131,6 +131,12 @@
 
 
             currentGameFile = fileName;
+
+            gtag('event', 'game_select', {
+                'game_title': gameTitles[fileName] || '알 수 없는 게임', 
+                'file_name': fileName   
+            });
+
             document.getElementById('rank_board_view').style.display = 'none';
             document.getElementById('welcome_screen').style.display = 'none';
             const frame = document.getElementById('game_frame');
@@ -208,7 +214,7 @@
             // 현재 게임 제목을 미리 변수에 할당 (값이 없으면 '미선택' 등으로 표시)
             const currentGameTitle = gameTitles[currentGameFile] || '게임 미선택';
 
-            if (data.type === 'GAME_START') {
+            if (data.type === 'GAME_START' || data.type === 'GAME_ACTUAL_START') {
                 gameStartTime = now;
                 // [수정] 제목이 없을 경우를 대비해 기본값 설정
                 gtag('event', 'game_start', { 'game_title': currentGameTitle });
