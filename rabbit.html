@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>하늘을 나는 토끼 점프 (모바일 버전)</title>
+    <title>하늘을 나는 토끼 점프</title>
     <style>
         body { 
             margin: 0; 
@@ -14,30 +14,119 @@
             background-color: #333; 
             font-family: 'Arial', sans-serif; 
             overflow: hidden; 
-            /* 모바일에서 텍스트 선택 방지 */
             user-select: none; 
             -webkit-user-select: none;
         }
-        /* 모바일 화면 비율에 맞춰 캔버스 크기 자동 조절 */
+        /* 캔버스와 버튼을 묶는 컨테이너 */
+        #gameContainer {
+            position: relative;
+            max-width: 100%;
+            max-height: 100vh;
+        }
         canvas { 
             background: linear-gradient(to bottom, #4facfe 0%, #00f2fe 100%); 
             box-shadow: 0 0 20px rgba(0,0,0,0.5); 
-            max-width: 100%; 
-            max-height: 100vh;
-            /* 모바일에서 터치했을 때 파란색 하이라이트 박스 생기는 것 방지 */
+            display: block;
             -webkit-tap-highlight-color: transparent;
+        }
+        /* 모바일 좌우 버튼 스타일 */
+        #mobileControls {
+            position: absolute;
+            bottom: 30px;
+            width: 100%;
+            display: flex;
+            justify-content: space-between;
+            padding: 0 30px;
+            box-sizing: border-box;
+            pointer-events: none; /* 컨테이너 자체는 터치 무시 */
+        }
+        .dir-btn {
+            width: 70px;
+            height: 70px;
+            background-color: rgba(255, 255, 255, 0.4);
+            border: 3px solid rgba(255, 255, 255, 0.7);
+            border-radius: 50%;
+            font-size: 30px;
+            color: #333;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            pointer-events: auto; /* 버튼은 터치 가능 */
+            touch-action: none; /* 브라우저 기본 스크롤/확대 방지 */
+            cursor: pointer;
+        }
+        .dir-btn:active {
+            background-color: rgba(255, 255, 255, 0.7);
         }
     </style>
 </head>
 <body>
 
-<canvas id="gameCanvas" width="400" height="600"></canvas>
+<div id="gameContainer">
+    <canvas id="gameCanvas" width="400" height="600"></canvas>
+    
+    <div id="mobileControls">
+        <div id="btnLeft" class="dir-btn">◀</div>
+        <div id="btnRight" class="dir-btn">▶</div>
+    </div>
+</div>
 
 <script>
     const canvas = document.getElementById("gameCanvas");
     const ctx = canvas.getContext("2d");
 
-    // --- 초반 긴장감을 높인 게임 설정 값 ---
+    // --- [사운드 설정] ---
+    const BGM_URL = "rabbit_bgm.mp3"; 
+    const bgm = new Audio(BGM_URL);
+    bgm.loop = true;
+    bgm.volume = 0.3;
+
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+    function playEffect(type) {
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+
+        const now = audioCtx.currentTime;
+
+        if (type === 'jump') { // 또잉!
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(300, now);
+            osc.frequency.exponentialRampToValueAtTime(1000, now + 0.15);
+            gain.gain.setValueAtTime(0.3, now);
+            gain.gain.exponentialRampToValueAtTime(0.01, now + 0.15);
+            osc.start(now);
+            osc.stop(now + 0.15);
+        } 
+        else if (type === 'hit') { // 퍽!
+            osc.type = 'square';
+            osc.frequency.setValueAtTime(150, now);
+            gain.gain.setValueAtTime(0.3, now);
+            gain.gain.exponentialRampToValueAtTime(0.01, now + 0.1);
+            osc.start(now);
+            osc.stop(now + 0.1);
+        } 
+        else if (type === 'gameover') { // 띠로리~
+            osc.type = 'sawtooth';
+            osc.frequency.setValueAtTime(300, now);
+            osc.frequency.exponentialRampToValueAtTime(50, now + 0.5);
+            gain.gain.setValueAtTime(0.3, now);
+            gain.gain.linearRampToValueAtTime(0.01, now + 0.6);
+            osc.start(now);
+            osc.stop(now + 0.6);
+        }
+    }
+
+    // 오디오 정책 잠금 해제용 함수 (최초 터치 시 실행)
+    function unlockAudio() {
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+        if (bgm.paused) bgm.play().catch(() => {});
+    }
+
+    // --- 게임 설정 값 ---
     const GRAVITY = 0.45;      
     const JUMP_STR = -10.5;    
     const SPRING_BOOST = -22;  
@@ -46,11 +135,10 @@
     const MONSTER_DAMAGE = 1;
     const INVINCIBLE_TIME = 1000;
 
-    // --- 게임 상태 변수 ---
     let player, platforms, monsters, springs, clouds, score, gameOver, keys, isInvincible, invincibleTimer, gameOverReason;
+    let isCounting, countNum, countMsg;
 
     function initGame() {
-	// [보정] 게임 시작 신호를 함수 시작 시점에 즉시 전송
         window.parent.postMessage({ type: 'GAME_ACTUAL_START' }, '*');
 
         player = { x: canvas.width / 2 - 15, y: canvas.height - 150, width: 30, height: 30, dy: 0, hp: MAX_HP };
@@ -59,18 +147,25 @@
         keys = { right: false, left: false };
         gameOverReason = "";
 
+        // 카운트다운 설정
+        isCounting = true;
+        countNum = 3;
+        countMsg = "하늘 높이 올라가보세요!";
 
-        // 시작 발판
+        const timer = setInterval(() => {
+            countNum--;
+            if (countNum <= 0) {
+                isCounting = false;
+                clearInterval(timer);
+            }
+        }, 1000);
+
         platforms.push({ x: canvas.width / 2 - 35, y: canvas.height - 30, width: 70, height: 15, type: 'normal', dx: 0 });
-
-        // 초기 발판 및 배경 구름 생성
         for (let i = 1; i < 9; i++) spawnPlatform(canvas.height - i * 70);
         for (let i = 0; i < 5; i++) spawnCloud(Math.random() * canvas.height);
     }
 
-    function spawnCloud(y) {
-        clouds.push({ x: Math.random() * canvas.width, y: y, size: Math.random() * 20 + 30 });
-    }
+    function spawnCloud(y) { clouds.push({ x: Math.random() * canvas.width, y: y, size: Math.random() * 20 + 30 }); }
 
     function spawnPlatform(y) {
         let typeRand = Math.random();
@@ -93,70 +188,17 @@
             } else if (score > 50 && itemRand < 0.35) {
                 monsters.push({ 
                     x: platX, y: y - 30, width: 30, height: 30, 
-                    dx: (Math.random() > 0.5 ? 1 : -1) * (1.5 + score/2000), 
-                    alive: true 
+                    dx: (Math.random() > 0.5 ? 1 : -1) * (1.5 + score/2000), alive: true 
                 });
             }
         }
     }
 
-    // ⭐ PC용 키보드 이벤트 (테스트용 유지)
-    document.addEventListener("keydown", (e) => {
-        if (e.code === "ArrowRight") keys.right = true;
-        if (e.code === "ArrowLeft") keys.left = true;
-        if (e.code === "Space" && gameOver) { initGame(); update(); }
-    });
-    document.addEventListener("keyup", (e) => {
-        if (e.code === "ArrowRight") keys.right = false;
-        if (e.code === "ArrowLeft") keys.left = false;
-    });
-
-    // ⭐ 모바일용 터치 이벤트 추가
-    canvas.addEventListener("touchstart", handleTouch, { passive: false });
-    canvas.addEventListener("touchmove", handleTouch, { passive: false });
-    canvas.addEventListener("touchend", (e) => {
-        e.preventDefault();
-        keys.left = false;
-        keys.right = false;
-    }, { passive: false });
-
-    function handleTouch(e) {
-        e.preventDefault(); // 스크롤 방지
-        
-        if (gameOver) {
-            initGame();
-            update();
-            return;
-        }
-
-        const touch = e.touches[0];
-        const rect = canvas.getBoundingClientRect();
-        // 캔버스 내 터치 위치 계산 (화면 렌더링 크기에 비례하여 맞춤)
-        const scaleX = canvas.width / rect.width;
-        const touchX = (touch.clientX - rect.left) * scaleX;
-
-        // 화면 왼쪽 절반을 터치하면 왼쪽, 오른쪽이면 오른쪽으로 이동
-        if (touchX < canvas.width / 2) {
-            keys.left = true;
-            keys.right = false;
-        } else {
-            keys.right = true;
-            keys.left = false;
-        }
-    }
-
-    // 충돌 감지
-    function rectIntersect(r1, r2) {
-        let margin = 5; 
-        return !(r2.x > r1.x + r1.width - margin || 
-                 r2.x + r2.width < r1.x + margin || 
-                 r2.y > r1.y + r1.height - margin || 
-                 r2.y + r2.height < r1.y + margin);
-    }
-
     function takeDamage() {
         if (isInvincible || gameOver) return;
         player.hp -= MONSTER_DAMAGE;
+        playEffect('hit'); // [수정] 피격 효과음
+        
         if (player.hp <= 0) {
             triggerGameOver("독수리의 밥이 되었습니다!");
         } else {
@@ -171,14 +213,23 @@
         gameOver = true;
         gameOverReason = reason;
         player.dy = 12; 
-        keys.left = false; keys.right = false; // 죽으면 이동 멈춤
+        
+        bgm.pause(); // [수정] bgm 정지
+        bgm.currentTime = 0;
+        playEffect('gameover'); // [수정] 게임오버 효과음
 
-// 이 줄을 추가하세요!
-    window.parent.postMessage({ type: 'GAME_OVER', score: Math.floor(score) }, '*');
+        keys.left = false; keys.right = false; 
+        window.parent.postMessage({ type: 'GAME_OVER', score: Math.floor(score) }, '*');
+    }
 
+    function rectIntersect(r1, r2) {
+        let margin = 5; 
+        return !(r2.x > r1.x + r1.width - margin || r2.x + r2.width < r1.x + margin || r2.y > r1.y + r1.height - margin || r2.y + r2.height < r1.y + margin);
     }
 
     function update() {
+        if (isCounting) { draw(); requestAnimationFrame(update); return; }
+        
         if (gameOver) {
             player.y += player.dy;
             draw();
@@ -186,16 +237,15 @@
             return;
         }
 
-        // 1. 플레이어 이동
         if (keys.right) player.x += PLAYER_SPEED;
         if (keys.left) player.x -= PLAYER_SPEED;
+        
         if (player.x > canvas.width) player.x = -player.width;
         if (player.x + player.width < 0) player.x = canvas.width;
 
         player.dy += GRAVITY;
         player.y += player.dy;
 
-        // 2. 발판 움직임
         platforms.forEach(p => {
             if (p.dx !== 0) {
                 p.x += p.dx;
@@ -203,7 +253,6 @@
             }
         });
 
-        // 3. 몬스터(독수리) 이동 및 충돌
         monsters.forEach(m => {
             if (!m.alive) return;
             m.x += m.dx;
@@ -212,7 +261,8 @@
             if (rectIntersect(player, m)) {
                 if (player.dy > 0 && player.y + player.height < m.y + m.height/2 + 10) {
                     m.alive = false;
-                    player.dy = JUMP_STR; // 독수리 밟고 점프
+                    player.dy = JUMP_STR; 
+                    playEffect('jump'); // [수정] 몬스터 밟을 때 소리
                     score += 150;
                 } else {
                     takeDamage();
@@ -220,29 +270,26 @@
             }
         });
 
-        // 4. 버섯(스프링) 충돌
         if (player.dy > 0) {
             springs.forEach(s => {
                 if (s.alive && rectIntersect(player, s)) {
                     player.dy = SPRING_BOOST; 
+                    playEffect('jump'); // [수정] 스프링 탈 때 소리
                     score += 50;
                 }
             });
-        }
 
-        // 5. 발판 충돌
-        if (player.dy > 0) {
             platforms.forEach((p, index) => {
                 if (player.x + player.width > p.x && player.x < p.x + p.width && 
                     player.y + player.height > p.y && player.y + player.height < p.y + p.height + player.dy) {
                     
                     player.dy = JUMP_STR;
+                    playEffect('jump'); // [수정] 일반 발판 밟을 때 소리
                     if (p.type === 'broken') platforms.splice(index, 1);
                 }
             });
         }
 
-        // 6. 스크롤 및 점수 획득
         if (player.y < canvas.height / 2.5) {
             let offset = (canvas.height / 2.5) - player.y;
             player.y = canvas.height / 2.5;
@@ -253,14 +300,10 @@
             springs.forEach(s => s.y += offset);
             clouds.forEach(c => {
                 c.y += offset * 0.3; 
-                if(c.y > canvas.height) {
-                    c.y = -50;
-                    c.x = Math.random() * canvas.width;
-                }
+                if(c.y > canvas.height) { c.y = -50; c.x = Math.random() * canvas.width; }
             });
         }
 
-        // 7. 화면 밖 객체 정리 및 스폰
         platforms = platforms.filter(p => p.y < canvas.height);
         monsters = monsters.filter(m => m.y < canvas.height && m.alive);
         springs = springs.filter(s => s.y < canvas.height);
@@ -281,88 +324,116 @@
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         ctx.textBaseline = "top";
 
-        // 배경 구름
         ctx.fillStyle = "rgba(255, 255, 255, 0.7)";
-        clouds.forEach(c => {
-            ctx.font = `${c.size}px Arial`;
-            ctx.fillText("☁️", c.x, c.y);
-        });
+        clouds.forEach(c => { ctx.font = `${c.size}px Arial`; ctx.fillText("☁️", c.x, c.y); });
 
-        // 발판
         platforms.forEach(p => {
             if (p.type === 'broken') {
-                ctx.fillStyle = "#A0522D"; 
-                ctx.fillRect(p.x, p.y, p.width, p.height);
-                ctx.fillStyle = "#8B4513";
-                ctx.fillRect(p.x, p.y + p.height/2, p.width, 2); 
+                ctx.fillStyle = "#A0522D"; ctx.fillRect(p.x, p.y, p.width, p.height);
+                ctx.fillStyle = "#8B4513"; ctx.fillRect(p.x, p.y + p.height/2, p.width, 2); 
             } else {
-                ctx.fillStyle = "#8BC34A"; 
-                ctx.fillRect(p.x, p.y, p.width, p.height);
-                ctx.fillStyle = "#689F38"; 
-                ctx.fillRect(p.x, p.y, p.width, 5); 
+                ctx.fillStyle = "#8BC34A"; ctx.fillRect(p.x, p.y, p.width, p.height);
+                ctx.fillStyle = "#689F38"; ctx.fillRect(p.x, p.y, p.width, 5); 
             }
         });
 
-        // 버섯(스프링)
-        springs.forEach(s => {
-            if(s.alive) {
-                ctx.font = "25px Arial";
-                ctx.fillText("🍄", s.x, s.y);
-            }
-        });
+        springs.forEach(s => { if(s.alive) { ctx.font = "25px Arial"; ctx.fillText("🍄", s.x, s.y); } });
+        monsters.forEach(m => { if(m.alive) { ctx.font = "30px Arial"; ctx.fillText("🦅", m.x, m.y); } });
 
-        // 몬스터(독수리)
-        monsters.forEach(m => {
-            if(m.alive) {
-                ctx.font = "30px Arial";
-                ctx.fillText("🦅", m.x, m.y);
-            }
-        });
-
-        // 플레이어(토끼)
         if (!isInvincible || Math.floor(Date.now() / 100) % 2 === 0) {
-            ctx.font = "30px Arial";
-            ctx.fillText("🐰", player.x, player.y);
+            ctx.font = "30px Arial"; ctx.fillText("🐰", player.x, player.y);
         }
 
-        // UI
         ctx.fillStyle = "#333";
         ctx.font = "bold 22px 'Comic Sans MS', cursive, sans-serif";
         ctx.fillText(`Score: ${score}`, 15, 15);
-
         for (let i = 0; i < MAX_HP; i++) {
             ctx.font = "20px Arial";
             ctx.fillText(i < player.hp ? "🥕" : "⚪", canvas.width - 35 - (i * 25), 15);
         }
 
-        // 게임 오버
-        if (gameOver) {
-            ctx.fillStyle = "rgba(0, 0, 0, 0.6)";
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
-            
-            ctx.fillStyle = "#fff";
-            ctx.textAlign = "center";
-            ctx.font = "bold 40px 'Comic Sans MS', cursive, sans-serif";
-            ctx.fillText("GAME OVER", canvas.width / 2, 230);
-            
-            ctx.fillStyle = "#FFC107";
-            ctx.font = "bold 20px Arial";
-            ctx.fillText(gameOverReason, canvas.width / 2, 280);
+        if (isCounting) {
+            ctx.fillStyle = "rgba(0, 0, 0, 0.5)"; ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.textAlign = "center"; ctx.fillStyle = "#fff"; ctx.font = "bold 20px Arial";
+            ctx.fillText(countMsg, canvas.width / 2, 250);
+            ctx.font = "bold 80px Arial"; ctx.fillStyle = "#FFC107";
+            ctx.fillText(countNum, canvas.width / 2, 330);
+            ctx.textAlign = "left";
+        }
 
-            ctx.fillStyle = "#fff";
-            ctx.font = "bold 25px Arial";
+        if (gameOver) {
+            ctx.fillStyle = "rgba(0, 0, 0, 0.6)"; ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.fillStyle = "#fff"; ctx.textAlign = "center"; ctx.font = "bold 40px 'Comic Sans MS', cursive, sans-serif";
+            ctx.fillText("GAME OVER", canvas.width / 2, 230);
+            ctx.fillStyle = "#FFC107"; ctx.font = "bold 20px Arial";
+            ctx.fillText(gameOverReason, canvas.width / 2, 280);
+            ctx.fillStyle = "#fff"; ctx.font = "bold 25px Arial";
             ctx.fillText(`최종 점수: ${score}`, canvas.width / 2, 330);
-            
             ctx.font = "18px Arial";
-            // 모바일에 맞게 문구 변경
             ctx.fillText("🐰 [화면을 터치]하여 재도전 🐰", canvas.width / 2, 390);
             ctx.textAlign = "left"; 
         }
     }
 
+    // --- 이벤트 리스너 (키보드 & UI 버튼 & 화면 터치) ---
+
+    // 1. PC 키보드
+    document.addEventListener("keydown", (e) => {
+        unlockAudio();
+        if (e.code === "ArrowRight") keys.right = true;
+        if (e.code === "ArrowLeft") keys.left = true;
+        if (e.code === "Space" && gameOver) { initGame(); update(); }
+    });
+    document.addEventListener("keyup", (e) => {
+        if (e.code === "ArrowRight") keys.right = false;
+        if (e.code === "ArrowLeft") keys.left = false;
+    });
+
+    // 2. 화면 터치 (게임 오버 재시작 및 오디오 잠금 해제용)
+    canvas.addEventListener("touchstart", (e) => {
+        e.preventDefault();
+        unlockAudio();
+        if (gameOver) { initGame(); update(); }
+    }, { passive: false });
+    
+    // PC에서 마우스 클릭 지원
+    canvas.addEventListener("mousedown", () => {
+        unlockAudio();
+        if (gameOver) { initGame(); update(); }
+    });
+
+    // 3. 모바일 UI 버튼 조작
+    const btnLeft = document.getElementById("btnLeft");
+    const btnRight = document.getElementById("btnRight");
+
+    function setupButton(btn, keyName) {
+        btn.addEventListener("touchstart", (e) => {
+            e.preventDefault();
+            unlockAudio();
+            if (!isCounting && !gameOver) keys[keyName] = true;
+        }, { passive: false });
+        
+        btn.addEventListener("touchend", (e) => {
+            e.preventDefault();
+            keys[keyName] = false;
+        }, { passive: false });
+
+        // PC 마우스 테스트용
+        btn.addEventListener("mousedown", (e) => {
+            e.preventDefault();
+            unlockAudio();
+            if (!isCounting && !gameOver) keys[keyName] = true;
+        });
+        btn.addEventListener("mouseup", (e) => { e.preventDefault(); keys[keyName] = false; });
+        btn.addEventListener("mouseleave", (e) => { e.preventDefault(); keys[keyName] = false; });
+    }
+
+    setupButton(btnLeft, "left");
+    setupButton(btnRight, "right");
+
+    // 게임 시작
     initGame();
     update();
 </script>
-
 </body>
 </html>
