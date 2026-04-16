@@ -228,7 +228,7 @@ function initThree() {
     scene = new THREE.Scene();
     scene.background = new THREE.Color(themeBaseColors[0]);
     scene.fog = new THREE.FogExp2(themeBaseColors[0], 0);
-    camera = new THREE.PerspectiveCamera(40, mapW / mapH, 1, 10000);
+    camera = new THREE.PerspectiveCamera(50, mapW / mapH, 1, 10000);
     renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.outputEncoding = THREE.sRGBEncoding;
     renderer.setSize(mapW, mapH);
@@ -257,27 +257,17 @@ function createRoom() {
 }
 
 function resize() {
-    const screenW = window.innerWidth;
-    const screenH = window.innerHeight;
-    mapW = 712; mapH = 852;
-    const scaleX = screenW / mapW;
-    const scaleY = screenH / mapH;
-    scale = Math.min(scaleX, scaleY);
-    wrapper.style.width = mapW + 'px'; wrapper.style.height = mapH + 'px';
-    wrapper.style.transform = `scale(${scale})`; wrapper.style.transformOrigin = 'center center';
-    uiCanvas.width = mapW; uiCanvas.height = mapH;
-    if (renderer) renderer.setSize(mapW, mapH);
-    if (camera) {
-        camera.aspect = mapW / mapH; camera.updateProjectionMatrix();
-        baseCamDist = (mapH / 2) / Math.tan((camera.fov / 2) * Math.PI / 180);
-        if (!isTransitioning) {
-            camera.position.y = Math.cos(globalCamAngle) * baseCamDist;
-            camera.position.z = Math.sin(globalCamAngle) * baseCamDist;
-            camera.up.set(0, Math.sin(globalCamAngle), -Math.cos(globalCamAngle));
-            camera.lookAt(0, 0, 0);
-        }
-    }
+    const wrapper = document.getElementById('game-wrapper');
+    const container = document.body; // 나를 감싸고 있는 방 크기를 확인해요
+    
+    // 방 크기에 맞춰서 게임판을 늘리거나 줄여요
+    let scale = Math.min(container.clientWidth / mapW, container.clientHeight / mapH);
+    wrapper.style.width = mapW + 'px';
+    wrapper.style.height = mapH + 'px';
+    wrapper.style.transform = `scale(${scale})`;
+    wrapper.style.transformOrigin = 'top center'; // 위쪽 가운데를 기준으로 크기를 맞춰요
 }
+
 
 window.addEventListener('resize', resize); window.addEventListener('orientationchange', () => setTimeout(resize, 300)); if (window.visualViewport) window.visualViewport.addEventListener('resize', resize);
 
@@ -645,7 +635,7 @@ function startGame() {
     enemies = []; for (let i = 0; i < 10; i++) enemies.push(new Enemy(false));
     gems = []; particles = []; specialBlocks = []; floatingTexts = []; shockwaves = [];
     globalCamAngle = 0; baseCamDist = (mapH / 2) / Math.tan((camera.fov / 2) * Math.PI / 180);
-    camera.position.set(0, baseCamDist, 0); camera.up.set(0, 0, -1); camera.lookAt(0, 0, 0);
+    camera.position.set(0, 950, 0); camera.up.set(0, 0, -1); camera.lookAt(0, 0, 0);
     scene.background = new THREE.Color(themeBaseColors[0]);
     scene.fog.color = new THREE.Color(themeBaseColors[0]);
     scene.fog.density = 0;
