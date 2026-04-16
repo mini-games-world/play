@@ -1,0 +1,654 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Mine Hole</title>
+    <style>
+        body { 
+            margin: 0; overflow: hidden; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+            background-color: #0a0a0a; user-select: none; touch-action: none; 
+            display: flex; justify-content: center; align-items: center; height: 100vh;
+        }
+
+        #gameContainer {
+            position: relative;
+            width: 712px; height: 852px;
+            background-color: #1a1a1a; 
+            overflow: hidden;
+            box-shadow: 0 0 40px rgba(0, 0, 0, 0.8);
+            max-width: 100vw; max-height: 100vh;
+        }
+
+        canvas { display: block; width: 100% !important; height: 100% !important;}
+        
+        #ui {
+            position: absolute; top: 15px; left: 15px; color: white;
+            background: rgba(0,0,0,0.8); padding: 12px 20px; border-radius: 12px;
+            pointer-events: none; border: 1px solid #444; width: 180px; display: none; z-index: 10;
+        }
+        .rank-item { display: flex; justify-content: space-between; margin-bottom: 4px; font-size: 14px; font-weight: bold; }
+        .rank-color { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; }
+
+        #killLogContainer {
+            position: absolute; top: 15px; right: 15px; width: 220px;
+            display: flex; flex-direction: column; align-items: flex-end;
+            pointer-events: none; z-index: 10;
+        }
+        .kill-log-item {
+            background: rgba(0, 0, 0, 0.85); color: #fff;
+            padding: 6px 12px; margin-bottom: 5px; border-radius: 4px;
+            font-size: 12px; font-weight: bold; font-family: sans-serif;
+            animation: slideIn 0.3s ease-out;
+            box-shadow: 0 0 10px rgba(0,0,0,0.8);
+        }
+        @keyframes slideIn { from { transform: translateX(20px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+
+        #floatingTextContainer {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            pointer-events: none; z-index: 5; overflow: hidden;
+        }
+        .floating-score {
+            position: absolute; color: #f1c40f; font-weight: 900; font-size: 22px;
+            text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000, 0 0 10px #f1c40f;
+            transform: translate(-50%, -50%);
+        }
+
+        #mainMenuScreen {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(10, 10, 10, 0.9); display: flex; flex-direction: column;
+            justify-content: center; align-items: center; color: white; z-index: 20;
+        }
+        #gameTitle { font-size: 64px; color: #f39c12; margin-bottom: 30px; font-weight: bold; text-shadow: 0 0 30px rgba(243, 156, 18, 0.6); text-transform: uppercase; text-align: center;}
+        
+        #playerNameInput {
+            padding: 12px; font-size: 20px; text-align: center; border-radius: 8px;
+            border: 2px solid #f39c12; background: rgba(0,0,0,0.6); color: white;
+            margin-bottom: 25px; width: 250px; font-weight: bold; outline: none;
+            pointer-events: auto; box-sizing: border-box;
+        }
+        #playerNameInput:focus { border-color: #f1c40f; background: rgba(0,0,0,0.8); }
+        #playerNameInput:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        .actionBtn {
+            padding: 15px 40px; font-size: 24px; color: #000; background: #f39c12;
+            border: none; border-radius: 8px; cursor: pointer; font-weight: bold; pointer-events: auto;
+            transition: all 0.2s; width: 250px; text-align: center; box-sizing: border-box;
+            box-shadow: 0 0 15px rgba(243, 156, 18, 0.5);
+        }
+        .actionBtn:hover { transform: scale(1.05); background: #e67e22; }
+        .actionBtn:disabled { background: #555; color: #aaa; cursor: not-allowed; transform: none; box-shadow: none;}
+
+        #matchingScreen {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(10, 10, 10, 0.95); display: none; flex-direction: column;
+            justify-content: center; align-items: center; color: white; z-index: 25;
+        }
+        #matchingControls {
+            position: absolute; top: 150px; font-size: 16px; color: #ccc; text-align: center; font-weight: bold;
+        }
+        #matchingText { font-size: 32px; color: #f39c12; margin-bottom: 20px; font-weight: bold; text-transform: uppercase; letter-spacing: 2px;}
+        #matchingCount { font-size: 80px; color: #1dd1a1; font-weight: bold; text-shadow: 0 0 20px rgba(29, 209, 161, 0.6);}
+
+        #gameOverScreen {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(10, 10, 10, 0.9); display: none; flex-direction: column;
+            justify-content: center; align-items: center; color: white; z-index: 15;
+        }
+        #gameOverTitle { font-size: 52px; margin-bottom: 15px; font-weight: bold; text-transform: uppercase; text-align: center; text-shadow: 0 0 20px rgba(255,0,0,0.5); }
+        #finalRank { font-size: 24px; margin-bottom: 10px; color: #ccc; font-weight: bold; text-align: center;}
+        #finalScore { font-size: 28px; margin-bottom: 30px; color: #f1c40f; font-weight: bold; text-align: center;}
+
+        @media (max-width: 600px) {
+            #ui { padding: 10px 15px; width: 150px; top: 10px; left: 10px;}
+            .rank-item { font-size: 12px; }
+            #killLogContainer { top: 10px; right: 10px; width: 180px;}
+            .kill-log-item { font-size: 10px; padding: 4px 8px;}
+            #gameTitle { font-size: 48px; }
+            #gameOverTitle { font-size: 38px; }
+            .actionBtn, #playerNameInput { font-size: 20px; width: 220px; }
+            #matchingControls { font-size: 13px; width: 90%; }
+        }
+    </style>
+</head>
+<body>
+
+<audio id="gameBgm" src="Iron_Against_Stone.mp3" loop preload="auto"></audio>
+
+<div id="gameContainer">
+    <div id="mainMenuScreen">
+        <div id="gameTitle">Mine Hole<br><span style="font-size: 24px; color: #e74c3c;">Eat'em ALL</span></div>
+        <input type="text" id="playerNameInput" placeholder="Enter Nickname" value="Player" maxlength="12" autocomplete="off">
+        <button id="startBtn" class="actionBtn" onclick="startMatching(false)">Start</button>
+    </div>
+
+    <div id="matchingScreen">
+        <div id="matchingControls">Controls: PC (Arrows / WASD)<br>Mobile (Touch & Drag)</div>
+        <div id="matchingText">Matching...</div>
+        <div id="matchingCount">3</div>
+    </div>
+
+    <div id="ui">
+        <div id="leaderboard"></div>
+    </div>
+
+    <div id="killLogContainer"></div>
+    <div id="floatingTextContainer"></div>
+
+    <div id="gameOverScreen">
+        <div id="gameOverTitle">GAME OVER</div>
+        <div id="finalRank">Rank: -</div>
+        <div id="finalScore">Score: 0</div>
+        <button id="restartBtn" class="actionBtn" onclick="startMatching(window.lastGameWon)">Play Again</button>
+    </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+
+<script>
+    const MAX_OBJECTS = { mole: 250, cart: 60, rock: 350, gem: 300, diamond: 45 };
+
+    let scene, camera, renderer, clock;
+    let ground;
+    let eatableObjects = [];
+    let holes = [];
+    let floatingTexts = []; 
+    
+    let containerHalfW = 0, containerHalfH = 0;
+    const MAP_LIMIT = 75; 
+    
+    const fakeNames = ["ShadowNinja", "ProGamer", "NoobSlayer", "KittyCat", "DarkLord", "Xx_Snipe_xX", "HoleMaster", "GigaChad", "Terminator", "Anonymous", "Pikatchu", "ProMiner", "zzKingzz", "MineMaster", "TooEasy", "Player", "Player", "Player", "Player", "Player", "Player", "Player", "Player", "Player", "Player11"];
+
+    let keys = { w: false, a: false, s: false, d: false, ArrowUp: false, ArrowDown: false, ArrowLeft: false, ArrowRight: false };
+    
+    let usingKeyboard = true; let usingTouch = false;
+    let touchDirX = 0; let touchDirZ = 0;
+    let touchStartX = 0; let touchStartY = 0;
+    
+    const baseSpeed = 15.0; 
+    
+    let isPlaying = false; let isGameOver = false;
+    let respawnInterval;
+    let internalStage = 1; window.lastGameWon = false; window.playerName = "Player"; 
+
+    let cachedGeos = {};
+    let cachedEdges = {};
+    let cachedMaterials = {};
+
+    function initAssets() {
+        cachedGeos = {
+            moleDirt: new THREE.TorusGeometry(0.3, 0.1, 4, 8),
+            moleBody: new THREE.CylinderGeometry(0.25, 0.25, 0.5, 16),
+            moleSnout: new THREE.ConeGeometry(0.1, 0.2, 16),
+            moleNose: new THREE.SphereGeometry(0.04, 8, 8),
+            moleEye: new THREE.SphereGeometry(0.03, 8, 8),
+            molePaw: new THREE.CylinderGeometry(0.12, 0.12, 0.05, 16),
+            moleHat: new THREE.SphereGeometry(0.26, 16, 16, 0, Math.PI*2, 0, Math.PI/2),
+            moleLamp: new THREE.CylinderGeometry(0.06, 0.06, 0.1, 16),
+            rock: new THREE.DodecahedronGeometry(1, 0),
+            ruby: new THREE.OctahedronGeometry(0.5, 0),
+            sapphire: new THREE.CylinderGeometry(0.3, 0.4, 1.0, 6),
+            emerald: new THREE.DodecahedronGeometry(0.5, 0),
+            amethyst1: new THREE.ConeGeometry(0.4, 1.2, 6),
+            amethyst2: new THREE.ConeGeometry(0.3, 0.9, 6),
+            diamond: new THREE.OctahedronGeometry(1.0, 0),
+            cartBody: new THREE.BoxGeometry(1.4, 0.8, 2.0),
+            cartCoal: new THREE.BoxGeometry(1.2, 0.4, 1.8),
+            cartWheel: new THREE.CylinderGeometry(0.2, 0.2, 0.1, 8),
+            indicator: new THREE.CircleGeometry(1, 32),
+            sawTooth: (function() {
+                const geo = new THREE.ConeGeometry(0.15, 0.35, 4);
+                geo.applyMatrix4(new THREE.Matrix4().makeRotationX(Math.PI / 2));
+                return geo;
+            })(),
+            minerHead: new THREE.SphereGeometry(0.2, 16, 12),
+            minerHat: new THREE.SphereGeometry(0.22, 16, 12, 0, Math.PI*2, 0, Math.PI/2),
+            minerHatStrip: new THREE.SphereGeometry(0.222, 16, 12, Math.PI * 0.45, Math.PI * 0.1, 0, Math.PI/2) // 안전모 곡면 띠
+        };
+
+        cachedEdges = {
+            ruby: new THREE.EdgesGeometry(cachedGeos.ruby),
+            sapphire: new THREE.EdgesGeometry(cachedGeos.sapphire),
+            emerald: new THREE.EdgesGeometry(cachedGeos.emerald),
+            amethyst1: new THREE.EdgesGeometry(cachedGeos.amethyst1),
+            amethyst2: new THREE.EdgesGeometry(cachedGeos.amethyst2),
+            diamond: new THREE.EdgesGeometry(cachedGeos.diamond)
+        };
+
+        cachedMaterials = {
+            indicator: new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.4, depthWrite: false }),
+            edgeLine: new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.6 }),
+            gem: {
+                ruby: new THREE.MeshStandardMaterial({ color: 0xff0000, emissive: 0xaa0000, emissiveIntensity: 0.5, metalness: 0.8, roughness: 0.1, transparent: true, opacity: 0.85 }),
+                sapphire: new THREE.MeshStandardMaterial({ color: 0x0033ff, emissive: 0x0011aa, emissiveIntensity: 0.5, metalness: 0.8, roughness: 0.1, transparent: true, opacity: 0.85 }),
+                emerald: new THREE.MeshStandardMaterial({ color: 0x00ff00, emissive: 0x00aa00, emissiveIntensity: 0.5, metalness: 0.8, roughness: 0.1, transparent: true, opacity: 0.85 }),
+                amethyst: new THREE.MeshStandardMaterial({ color: 0xaa00ff, emissive: 0x5500aa, emissiveIntensity: 0.5, metalness: 0.8, roughness: 0.1, transparent: true, opacity: 0.85 }),
+                diamond: new THREE.MeshStandardMaterial({ color: 0xaaffff, emissive: 0x00ffff, emissiveIntensity: 0.7, metalness: 0.9, roughness: 0.05, transparent: true, opacity: 0.9 })
+            },
+            rock: new THREE.MeshStandardMaterial({color: 0x555555, flatShading: true, roughness: 0.9}),
+            wood: new THREE.MeshStandardMaterial({color: 0x6d4c41}),
+            metal: new THREE.MeshStandardMaterial({color: 0x7f8c8d}),
+            coal: new THREE.MeshStandardMaterial({color: 0x111111}),
+            moleDirt: new THREE.MeshStandardMaterial({color: 0x3e2723}),
+            moleBody: new THREE.MeshStandardMaterial({color: 0x3d2314, roughness: 0.9}),
+            moleSnout: new THREE.MeshStandardMaterial({color: 0xffb8b8, roughness: 0.6}),
+            moleBlack: new THREE.MeshStandardMaterial({color: 0x000000}),
+            molePaw: new THREE.MeshStandardMaterial({color: 0xe5aa8a, roughness: 0.8}),
+            moleHat: new THREE.MeshStandardMaterial({color: 0xf1c40f, roughness: 0.3, metalness: 0.2}),
+            moleLamp: new THREE.MeshStandardMaterial({color: 0xeeeeee, emissive: 0xffffee, emissiveIntensity: 0.5}),
+            machineYellow: new THREE.MeshStandardMaterial({color: 0xf39c12, metalness: 0.5, roughness: 0.3}),
+            machineDark: new THREE.MeshStandardMaterial({color: 0x2c3e50, metalness: 0.7, roughness: 0.5}),
+            minerSkin: new THREE.MeshStandardMaterial({color: 0xffdbac, roughness: 0.8}),
+            minerClothes: new THREE.MeshStandardMaterial({color: 0x2980b9, roughness: 0.9}),
+            sawBlade: new THREE.MeshBasicMaterial({color: 0xbdc3c7})
+        };
+    }
+
+    function getDifficulty(stage) {
+        const pattern = ["Normal", "Hard", "Normal", "Hard"];
+        if (stage <= pattern.length) return pattern[stage - 1]; return "Hard";
+    }
+
+    function addKillLog(killerName, killerColorHex, victimName, victimColorHex) {
+        const container = document.getElementById('killLogContainer');
+        const log = document.createElement('div');
+        log.className = 'kill-log-item';
+        let kColor = '#' + killerColorHex.toString(16).padStart(6, '0');
+        let vColor = '#' + victimColorHex.toString(16).padStart(6, '0');
+        log.innerHTML = `<span style="color:${kColor}">${killerName}</span> ⚔️ <span style="color:${vColor}">${victimName}</span>`;
+        container.appendChild(log);
+        setTimeout(() => { if (log.parentNode) log.parentNode.removeChild(log); }, 4000);
+    }
+
+    function spawnFloatingText(text, x, y, z) {
+        const container = document.getElementById('floatingTextContainer');
+        const el = document.createElement('div');
+        el.className = 'floating-score'; el.innerText = text; container.appendChild(el);
+        floatingTexts.push({ el: el, x: x, y: y, z: z, life: 1.0 });
+    }
+
+    function createIdSprite(name, colorStr) {
+        let canvas = document.createElement('canvas'); canvas.width = 300; canvas.height = 64;
+        let ctx = canvas.getContext('2d');
+        ctx.font = 'Bold 44px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillStyle = 'rgba(0,0,0,0.8)'; ctx.fillText(name, 153, 35);
+        ctx.fillStyle = colorStr; ctx.fillText(name, 150, 32);
+        let texture = new THREE.CanvasTexture(canvas);
+        return new THREE.Sprite(new THREE.SpriteMaterial({ map: texture, transparent: true, depthWrite: false, depthTest: false, renderOrder: 9 }));
+    }
+
+    function createMineTexture() {
+        const canvas = document.createElement('canvas'); canvas.width = 1024; canvas.height = 1024;
+        const ctx = canvas.getContext('2d'); ctx.fillStyle = '#2b1b17'; ctx.fillRect(0, 0, 1024, 1024); ctx.fillStyle = '#3e2723'; ctx.fillRect(60, 60, 904, 904); ctx.fillStyle = '#4e342e';
+        for(let i=0; i<1024; i+=40) { ctx.fillRect(0, i+10, 60, 15); ctx.fillRect(964, i+10, 60, 15); ctx.fillRect(i+10, 0, 15, 60); ctx.fillRect(i+10, 964, 15, 60); }
+        ctx.fillStyle = '#7f8c8d'; ctx.fillRect(15, 0, 6, 1024); ctx.fillRect(39, 0, 6, 1024); ctx.fillRect(979, 0, 6, 1024); ctx.fillRect(1003, 0, 6, 1024); ctx.fillRect(0, 15, 1024, 6); ctx.fillRect(0, 39, 1024, 6); ctx.fillRect(0, 979, 1024, 6); ctx.fillRect(0, 1003, 1024, 6);
+        const tex = new THREE.CanvasTexture(canvas); tex.wrapS = THREE.RepeatWrapping; tex.wrapT = THREE.RepeatWrapping; tex.repeat.set(8, 8); return tex;
+    }
+
+    function updateScreenContext() {
+        const container = document.getElementById('gameContainer'); const width = container.clientWidth; const height = container.clientHeight; containerHalfW = width / 2; containerHalfH = height / 2;
+        if (camera) { camera.aspect = width / height; camera.updateProjectionMatrix(); } if (renderer) { renderer.setSize(width, height); }
+    }
+
+    function init() {
+        initAssets(); 
+        clock = new THREE.Clock(); scene = new THREE.Scene(); scene.background = new THREE.Color(0x0a0a0a); 
+        const container = document.getElementById('gameContainer');
+        camera = new THREE.PerspectiveCamera(55, 1, 0.1, 1000); camera.position.set(0, 25, 20); camera.lookAt(0, 0, 0);
+        renderer = new THREE.WebGLRenderer({ antialias: true, stencil: true }); renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap; container.appendChild(renderer.domElement); updateScreenContext();
+        scene.add(new THREE.AmbientLight(0xffffff, 0.6)); const dirLight = new THREE.DirectionalLight(0xffffff, 1.0); dirLight.position.set(30, 50, 20); dirLight.castShadow = true; 
+        dirLight.shadow.camera.near = 10; dirLight.shadow.camera.far = 200; dirLight.shadow.camera.left = -90; dirLight.shadow.camera.right = 90; dirLight.shadow.camera.top = 90; dirLight.shadow.camera.bottom = -90; dirLight.shadow.mapSize.width = 1024; dirLight.shadow.mapSize.height = 1024; scene.add(dirLight);
+        
+        window.addEventListener('keydown', (e) => { let k = e.key.toLowerCase(); if(keys.hasOwnProperty(k)) { keys[k] = true; usingKeyboard = true; usingTouch = false; } else if(keys.hasOwnProperty(e.key)) { keys[e.key] = true; usingKeyboard = true; usingTouch = false; } });
+        window.addEventListener('keyup', (e) => { let k = e.key.toLowerCase(); if(keys.hasOwnProperty(k)) keys[k] = false; else if(keys.hasOwnProperty(e.key)) keys[e.key] = false; });
+        
+        window.addEventListener('touchstart', (e) => {
+            if(e.touches.length > 0) {
+                usingKeyboard = false; usingTouch = true;
+                touchStartX = e.touches[0].clientX;
+                touchStartY = e.touches[0].clientY;
+                touchDirX = 0; touchDirZ = 0;
+            }
+        }, {passive: false});
+
+        window.addEventListener('touchmove', (e) => {
+            if (usingTouch && isPlaying && e.cancelable) e.preventDefault();
+            if(e.touches.length > 0 && usingTouch) {
+                let dx = e.touches[0].clientX - touchStartX;
+                let dy = e.touches[0].clientY - touchStartY;
+                let dist = Math.sqrt(dx*dx + dy*dy);
+                if (dist > 10) { 
+                    touchDirX = dx / dist;
+                    touchDirZ = dy / dist;
+                } else {
+                    touchDirX = 0;
+                    touchDirZ = 0;
+                }
+            }
+        }, {passive: false});
+
+        window.addEventListener('touchend', () => {
+            usingTouch = false;
+            touchDirX = 0;
+            touchDirZ = 0;
+        });
+
+        window.addEventListener('resize', updateScreenContext); animate();
+    }
+
+    function startMatching(didWinPrevious) {
+        if (didWinPrevious) internalStage++; document.getElementById('gameOverScreen').style.display = 'none'; document.getElementById('ui').style.display = 'none';
+        const nameInput = document.getElementById('playerNameInput'); window.playerName = nameInput.value.trim() === "" ? "Player" : nameInput.value.trim();
+        document.getElementById('mainMenuScreen').style.display = 'none';
+        const matchingScreen = document.getElementById('matchingScreen'); const matchingCount = document.getElementById('matchingCount'); matchingScreen.style.display = 'flex';
+
+        // 💡 게임 시작 시 BGM을 재생하도록 설정
+        const bgm = document.getElementById('gameBgm');
+        if (bgm && bgm.paused) {
+            bgm.play().catch(e => console.warn("브라우저 정책으로 인해 오디오 재생이 차단되었습니다:", e));
+        }
+
+        let count = 3; matchingCount.innerText = count;
+        let countdownInterval = setInterval(() => { count--; if (count > 0) { matchingCount.innerText = count; } else { clearInterval(countdownInterval); matchingScreen.style.display = 'none'; document.getElementById('ui').style.display = 'block'; resetGame(internalStage); } }, 1000);
+    }
+    window.startMatching = startMatching;
+
+    function clearScene() {
+        eatableObjects.forEach(obj => scene.remove(obj)); eatableObjects = [];
+        holes.forEach(h => {
+            scene.remove(h.mask); scene.remove(h.tunnel); scene.remove(h.ring);
+            scene.remove(h.sawBladeGroup);
+            scene.remove(h.minerGroup);
+            if(h.idSprite) scene.remove(h.idSprite);
+        });
+        holes = []; floatingTexts.forEach(ft => ft.el.remove()); floatingTexts = []; document.getElementById('killLogContainer').innerHTML = '';
+        if(ground) scene.remove(ground);
+    }
+
+    function getValidSpawnPosition(radius, isCart) {
+        let maxTries = 30;
+        for(let i=0; i<maxTries; i++) {
+            let x, z;
+            if (isCart) { let isHorizontal = Math.random() > 0.5; let roadLine = (Math.floor(Math.random() * 7) - 3) * 20; if (isHorizontal) { x = (Math.random() - 0.5) * 150; z = roadLine; } else { x = roadLine; z = (Math.random() - 0.5) * 150; } } 
+            else { let blockX = Math.floor(Math.random() * 8) - 4; let blockZ = Math.floor(Math.random() * 8) - 4; x = blockX * 20 + 10 + (Math.random() - 0.5) * 15; z = blockZ * 20 + 10 + (Math.random() - 0.5) * 15; }
+            if (Math.abs(x) > MAP_LIMIT || Math.abs(z) > MAP_LIMIT) continue;
+            let isOverlapping = false;
+            for(let obj of eatableObjects) { if (obj.userData.isFalling || obj.userData.isMole) continue; let dx = x - obj.position.x; let dz = z - obj.position.z; if (Math.sqrt(dx*dx + dz*dz) < (radius + obj.userData.radius) * 0.9) { isOverlapping = true; break; } }
+            if (!isOverlapping) return {x, z};
+        }
+        return null;
+    }
+
+    function createRadiusIndicator(radius) { const indicator = new THREE.Mesh(cachedGeos.indicator, cachedMaterials.indicator); indicator.scale.set(radius, radius, 1); indicator.rotation.x = -Math.PI / 2; indicator.position.y = 0.03; return indicator; }
+
+    function spawnMole() {
+        let pos = getValidSpawnPosition(0.5, false); if(!pos) return false;
+        let group = new THREE.Group(); let dirt = new THREE.Mesh(cachedGeos.moleDirt, cachedMaterials.moleDirt); dirt.rotation.x = -Math.PI/2; dirt.position.y = 0.05;
+        let moleBody = new THREE.Group();
+        moleBody.add(new THREE.Mesh(cachedGeos.moleBody, cachedMaterials.moleBody), new THREE.Mesh(cachedGeos.moleSnout, cachedMaterials.moleSnout), new THREE.Mesh(cachedGeos.moleNose, cachedMaterials.moleBlack), new THREE.Mesh(cachedGeos.moleEye, cachedMaterials.moleBlack), new THREE.Mesh(cachedGeos.molePaw, cachedMaterials.molePaw), new THREE.Mesh(cachedGeos.moleHat, cachedMaterials.moleHat), new THREE.Mesh(cachedGeos.moleLamp, cachedMaterials.moleLamp));
+        moleBody.children[0].position.y = 0.25; moleBody.children[1].rotation.x = Math.PI / 2; moleBody.children[1].position.set(0, 0.3, 0.25); moleBody.children[2].position.set(0, 0.3, 0.36); moleBody.children[3].position.set(-0.1, 0.35, 0.2); let eyeR = moleBody.children[3].clone(); eyeR.position.x = 0.1; moleBody.add(eyeR); moleBody.children[4].rotation.set(Math.PI/6, 0, Math.PI/2); moleBody.children[4].position.set(-0.25, 0.15, 0.2); let pawR = moleBody.children[4].clone(); pawR.rotation.x = -Math.PI/6; pawR.position.x = 0.25; moleBody.add(pawR); moleBody.children[5].position.y = 0.45; moleBody.children[6].rotation.x = Math.PI/2; moleBody.children[6].position.set(0, 0.55, 0.25);
+        group.add(dirt, moleBody); let indicator = createRadiusIndicator(0.5); group.add(indicator); group.children.forEach(c => { if (c !== indicator) { c.traverse(child => { if(child.isMesh) { child.castShadow = true; child.receiveShadow = true; }}); } });
+        group.position.set(pos.x, 0, pos.z); group.userData = { radius: 0.5, isFalling: false, fallingInto: null, velY: 0, tumbleX: 0, tumbleZ: 0, isMole: true, type: 'mole', targetX: pos.x + (Math.random()-0.5)*10, targetZ: pos.z + (Math.random()-0.5)*10, moveDirX: 0, moveDirZ: 0 };
+        eatableObjects.push(group); scene.add(group); return true;
+    }
+
+    function spawnObjectByType(type) {
+        let group = new THREE.Group(); let radius = 1; let isCart = false;
+        if (type === 'rock') { let r = Math.random(); radius = (r < 0.3) ? 0.5 + Math.random() * 0.3 : (r < 0.8) ? 1.0 + Math.random() * 0.6 : 2.0 + Math.random() * 1.5; let rock = new THREE.Mesh(cachedGeos.rock, cachedMaterials.rock); rock.scale.set(radius, radius, radius); rock.position.y = radius * 0.8; rock.rotation.set(Math.random(), Math.random(), Math.random()); group.add(rock); } 
+        else if (type === 'gem') { let r = Math.random(); let sizeMult = Math.random() < 0.5 ? 1.0 : (Math.random() < 0.7 ? 1.5 : 2.5); if (r < 0.25) { let ruby = new THREE.Mesh(cachedGeos.ruby, cachedMaterials.gem.ruby); ruby.scale.set(sizeMult, sizeMult, sizeMult); ruby.add(new THREE.LineSegments(cachedEdges.ruby, cachedMaterials.edgeLine)); ruby.position.y = 0.45 * sizeMult; group.add(ruby); radius = 0.6 * sizeMult; } else if (r < 0.5) { let sapphire = new THREE.Mesh(cachedGeos.sapphire, cachedMaterials.gem.sapphire); sapphire.scale.set(sizeMult, sizeMult, sizeMult); sapphire.add(new THREE.LineSegments(cachedEdges.sapphire, cachedMaterials.edgeLine)); sapphire.position.y = 0.5 * sizeMult; group.add(sapphire); radius = 0.7 * sizeMult; } else if (r < 0.75) { let emerald = new THREE.Mesh(cachedGeos.emerald, cachedMaterials.gem.emerald); emerald.scale.set(sizeMult, sizeMult, sizeMult); emerald.add(new THREE.LineSegments(cachedEdges.emerald, cachedMaterials.edgeLine)); emerald.position.y = 0.5 * sizeMult; group.add(emerald); radius = 0.6 * sizeMult; } else { let amethyst1 = new THREE.Mesh(cachedGeos.amethyst1, cachedMaterials.gem.amethyst); amethyst1.scale.set(sizeMult, sizeMult, sizeMult); amethyst1.add(new THREE.LineSegments(cachedEdges.amethyst1, cachedMaterials.edgeLine)); amethyst1.position.y = 0.6 * sizeMult; let amethyst2 = new THREE.Mesh(cachedGeos.amethyst2, cachedMaterials.gem.amethyst); amethyst2.scale.set(sizeMult, sizeMult, sizeMult); amethyst2.add(new THREE.LineSegments(cachedEdges.amethyst2, cachedMaterials.edgeLine)); amethyst2.position.set(0.3 * sizeMult, 0.4 * sizeMult, 0.2 * sizeMult); amethyst2.rotation.z = -0.4; group.add(amethyst1, amethyst2); radius = 0.8 * sizeMult; } } 
+        else if (type === 'diamond') { let sizeMult = 1.5 + Math.random() * 1.0; let visualScale = sizeMult * 1.8; let diamond = new THREE.Mesh(cachedGeos.diamond, cachedMaterials.gem.diamond); diamond.scale.set(visualScale, visualScale, visualScale); diamond.add(new THREE.LineSegments(cachedEdges.diamond, cachedMaterials.edgeLine)); diamond.position.y = visualScale * 0.95; group.add(diamond); radius = 2.0 * sizeMult; } 
+        else if (type === 'cart') { isCart = true; let body = new THREE.Mesh(cachedGeos.cartBody, cachedMaterials.wood); body.position.y = 0.6; let coal = new THREE.Mesh(cachedGeos.cartCoal, cachedMaterials.coal); coal.position.y = 1.0; for(let i of [-1, 1]) { for(let j of [-1, 1]) { let wheel = new THREE.Mesh(cachedGeos.cartWheel, cachedMaterials.metal); wheel.rotation.z = Math.PI/2; wheel.position.set(i*0.75, 0.2, j*0.8); group.add(wheel); } } group.add(body, coal); radius = 1.2; }
+        let pos = getValidSpawnPosition(radius, isCart); if (!pos) return false; 
+        let indicator = createRadiusIndicator(radius); group.add(indicator);
+        group.userData = { radius, isFalling: false, fallingInto: null, velY: 0, tumbleX: 0, tumbleZ: 0, type: type, moveDirX: 0, moveDirZ: 0 };
+        if (isCart) { if (Math.abs(pos.z % 20) < 1) { group.rotation.y = Math.PI / 2; group.userData.moveDirX = (Math.random() > 0.5 ? 1 : -1); } else { group.userData.moveDirZ = (Math.random() > 0.5 ? 1 : -1); } } 
+        else if (type === 'rock' || type === 'gem' || type === 'diamond') { group.rotation.y = Math.random() * Math.PI; }
+        group.children.forEach(c => { if (c !== indicator) { c.castShadow = true; c.receiveShadow = true; } });
+        group.position.set(pos.x, 0, pos.z); eatableObjects.push(group); scene.add(group); return true;
+    }
+
+    function createCity() { for(let type in MAX_OBJECTS) { if(type === 'mole') continue; for(let i=0; i<MAX_OBJECTS[type]; i++) spawnObjectByType(type); } for(let i=0; i<MAX_OBJECTS.mole; i++) spawnMole(); }
+
+    function resetGame(stage) {
+        internalStage = stage; isPlaying = true; isGameOver = false; usingKeyboard = true; usingTouch = false; touchDirX = 0; touchDirZ = 0; window.lastGameWon = false;
+        window.parent.postMessage({ type: 'GAME_ACTUAL_START' }, '*'); document.getElementById('gameOverScreen').style.display = 'none';
+        clearScene();
+        const groundMat = new THREE.MeshStandardMaterial({ map: createMineTexture(), roughness: 1.0 }); groundMat.stencilWrite = true; groundMat.stencilFunc = THREE.NotEqualStencilFunc; groundMat.stencilRef = 1;
+        ground = new THREE.Mesh(new THREE.PlaneGeometry(160, 160), groundMat); ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true; ground.renderOrder = 2; scene.add(ground); createCity(); 
+        
+        createHole(true, window.playerName, 0x3498db, 0, 0);
+        let shuffledNames = [...fakeNames].sort(() => 0.5 - Math.random()); for(let i=0; i<7; i++) { let pos = [[25,25], [-25,25], [25,-25], [-25,-25], [0,35], [0,-35], [35,0]][i]; createHole(false, shuffledNames[i], [0xe74c3c, 0x2ecc71, 0xf1c40f, 0x9b59b6, 0xe67e22, 0x34495e, 0xff6b81][i], pos[0], pos[1]); } 
+        camera.position.set(0, 25, 20); camera.lookAt(0, 0, 0);
+        if(respawnInterval) clearInterval(respawnInterval); respawnInterval = setInterval(() => { if(!isPlaying || isGameOver) return; let counts = { rock: 0, cart: 0, gem: 0, diamond: 0, mole: 0 }; eatableObjects.forEach(o => { if (!o.userData.isFalling && o.userData.type) counts[o.userData.type]++; }); for(let type in MAX_OBJECTS) { let needed = MAX_OBJECTS[type] - counts[type]; if (needed > 0) { let toSpawn = Math.min(needed, (type === 'mole' ? 30 : 10)); for(let i=0; i<toSpawn; i++) type === 'mole' ? spawnMole() : spawnObjectByType(type); } } }, 3000);
+    }
+
+    function createHole(isPlayer, name, colorHex, startX, startZ) {
+        let radius = 1.5;
+        let finalColor = colorHex;
+
+        // 1. 구멍 마스크
+        const maskMat = new THREE.MeshBasicMaterial({ colorWrite: false, depthWrite: false }); maskMat.stencilWrite = true; maskMat.stencilFunc = THREE.AlwaysStencilFunc; maskMat.stencilZPass = THREE.ReplaceStencilOp; maskMat.stencilRef = 1;
+        const mask = new THREE.Mesh(new THREE.CircleGeometry(1, 64), maskMat); mask.rotation.x = -Math.PI / 2; mask.renderOrder = 1; scene.add(mask);
+
+        // 2. 구멍 내부 깊이 (검정색)
+        const tunnelMat = new THREE.MeshBasicMaterial({ color: 0x000000, side: THREE.BackSide }); tunnelMat.stencilWrite = true; tunnelMat.stencilFunc = THREE.EqualStencilFunc; tunnelMat.stencilRef = 1;
+        const tunnel = new THREE.Mesh(new THREE.CylinderGeometry(1, 0.7, 100, 32, 1, true), tunnelMat); tunnel.renderOrder = 3; scene.add(tunnel);
+
+        // 3. 구멍 겉 테두리
+        const ringMat = new THREE.MeshStandardMaterial({ color: finalColor, metalness: 0.7, roughness: 0.2 });
+        const ring = new THREE.Mesh(new THREE.TorusGeometry(1, 0.12, 32, 64), ringMat); ring.rotation.x = -Math.PI / 2; ring.castShadow = true; scene.add(ring);
+
+        // 4. 구멍 안쪽 회전 톱니 이빨
+        const sawBladeGroup = new THREE.Group();
+        const toothMat = cachedMaterials.sawBlade.clone();
+        toothMat.stencilWrite = true; toothMat.stencilFunc = THREE.EqualStencilFunc; toothMat.stencilRef = 1;
+        sawBladeGroup.renderOrder = 3; 
+
+        for(let i=0; i<16; i++) {
+            const tooth = new THREE.Mesh(cachedGeos.sawTooth, toothMat);
+            const angle = (i / 16) * Math.PI * 2;
+            tooth.position.set(Math.cos(angle) * 0.85, -0.2, Math.sin(angle) * 0.85);
+            tooth.lookAt(0, -0.2, 0);
+            sawBladeGroup.add(tooth);
+        }
+        scene.add(sawBladeGroup);
+
+        // 5. 광부 기계 생성
+        const minerGroup = new THREE.Group();
+        
+        // 의자 베이스 및 등받이
+        const seatBase = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.4, 0.8), cachedMaterials.machineDark); seatBase.position.set(0, 0.2, 0); minerGroup.add(seatBase);
+        const seatBack = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.8, 0.15), cachedMaterials.machineYellow); seatBack.position.set(0, 0.6, 0.35); minerGroup.add(seatBack);
+        
+        // 하체 (다리)
+        const upLegL = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.15, 0.4), cachedMaterials.minerClothes); upLegL.position.set(-0.15, 0.45, -0.15); minerGroup.add(upLegL);
+        const upLegR = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.15, 0.4), cachedMaterials.minerClothes); upLegR.position.set(0.15, 0.45, -0.15); minerGroup.add(upLegR);
+        const lowLegL = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.4, 0.15), cachedMaterials.minerClothes); lowLegL.position.set(-0.15, 0.2, -0.3); minerGroup.add(lowLegL);
+        const lowLegR = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.4, 0.15), cachedMaterials.minerClothes); lowLegR.position.set(0.15, 0.2, -0.3); minerGroup.add(lowLegR);
+
+        // 조종 콘솔 + 버튼 디테일
+        const consoleBoard = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.3, 0.4), cachedMaterials.machineYellow); consoleBoard.position.set(0, 0.5, -0.4); minerGroup.add(consoleBoard);
+        const btn1 = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.05, 0.1), new THREE.MeshStandardMaterial({color: 0x2ecc71})); btn1.position.set(-0.15, 0.66, -0.4); minerGroup.add(btn1);
+        const btn2 = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.05, 0.08), new THREE.MeshStandardMaterial({color: 0x3498db})); btn2.position.set(0.15, 0.66, -0.35); minerGroup.add(btn2);
+        
+        // 조종 레버
+        const leverGroupL = new THREE.Group(); leverGroupL.position.set(-0.25, 0.65, -0.3); minerGroup.add(leverGroupL);
+        const leverL = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.3), cachedMaterials.metal); leverL.position.set(0, 0.15, 0);
+        const knobL = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.15), new THREE.MeshStandardMaterial({color: 0xe74c3c})); knobL.rotation.z = Math.PI / 2; knobL.position.set(0, 0.3, 0); leverGroupL.add(leverL, knobL);
+        
+        const leverGroupR = new THREE.Group(); leverGroupR.position.set(0.25, 0.65, -0.3); minerGroup.add(leverGroupR);
+        const leverR = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.3), cachedMaterials.metal); leverR.position.set(0, 0.15, 0);
+        const knobR = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.15), new THREE.MeshStandardMaterial({color: 0xe74c3c})); knobR.rotation.z = Math.PI / 2; knobR.position.set(0, 0.3, 0); leverGroupR.add(leverR, knobR);
+
+        // 상체 전체 Pivot
+        const upperBody = new THREE.Group(); upperBody.position.set(0, 0.4, 0.1); minerGroup.add(upperBody);
+        const torso = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.5, 0.3), cachedMaterials.minerClothes); torso.position.set(0, 0.25, 0); upperBody.add(torso);
+        
+        // 머리 Pivot
+        const headGroup = new THREE.Group(); headGroup.position.set(0, 0.6, 0); upperBody.add(headGroup);
+        const head = new THREE.Mesh(cachedGeos.minerHead, cachedMaterials.minerSkin); headGroup.add(head);
+        const hat = new THREE.Mesh(cachedGeos.minerHat, cachedMaterials.moleHat); hat.position.set(0, 0.15, 0); headGroup.add(hat);
+        
+        // 💡 안전모 고유 색상 띠 (둥근 형태, 안전모 곡면에 밀착)
+        const hatStripMat = new THREE.MeshStandardMaterial({color: finalColor, roughness: 0.3}); // 유저 고유 색상 적용
+        const hatStrip = new THREE.Mesh(cachedGeos.minerHatStrip, hatStripMat); hatStrip.position.set(0, 0.15, 0); headGroup.add(hatStrip);
+
+        // 💡 얼굴에 명확한 눈 추가 (얼굴 표면에 정확히 맞추어 headGroup 내부에 배치)
+        const eyeL = new THREE.Mesh(new THREE.SphereGeometry(0.03, 8, 8), cachedMaterials.moleBlack); eyeL.position.set(-0.08, 0.05, -0.18); headGroup.add(eyeL);
+        const eyeR = new THREE.Mesh(new THREE.SphereGeometry(0.03, 8, 8), cachedMaterials.moleBlack); eyeR.position.set(0.08, 0.05, -0.18); headGroup.add(eyeR);
+
+        // 팔 관절 Pivot
+        const armL = new THREE.Group(); armL.position.set(-0.3, 0.4, 0); upperBody.add(armL);
+        const upArmL = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.35, 0.15), cachedMaterials.minerClothes); upArmL.position.set(0, -0.1, 0.1);
+        const lowArmL = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.15, 0.4), cachedMaterials.minerSkin); lowArmL.position.set(0, -0.25, -0.15); armL.add(upArmL, lowArmL);
+
+        const armR = new THREE.Group(); armR.position.set(0.3, 0.4, 0); upperBody.add(armR);
+        const upArmR = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.35, 0.15), cachedMaterials.minerClothes); upArmR.position.set(0, -0.1, 0.1);
+        const lowArmR = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.15, 0.4), cachedMaterials.minerSkin); lowArmR.position.set(0, -0.25, -0.15); armR.add(upArmR, lowArmR);
+        
+        minerGroup.traverse(c => { if(c.isMesh) { c.castShadow = true; c.receiveShadow = true; }});
+        scene.add(minerGroup);
+
+        const idSprite = createIdSprite(name, '#' + finalColor.toString(16).padStart(6, '0')); scene.add(idSprite);
+        let diff = getDifficulty(internalStage); const isAggressive = !isPlayer && (Math.random() < ((diff === "Hard") ? 0.4 : 0.15));
+        
+        const holeObj = { 
+            isPlayer, name, color: finalColor, radius, x: startX, z: startZ, targetX: startX, targetZ: startZ, mask, tunnel, ring, sawBladeGroup, minerGroup, idSprite, isAggressive, currentTarget: null, isDead: false,
+            animParts: { upperBody, headGroup, armL, armR, leverGroupL, leverGroupR },
+            moveDir: { x: 0, z: 0 }
+        };
+
+        updateHoleVisuals(holeObj); holes.push(holeObj);
+    }
+
+    function updateHoleVisuals(hole) {
+        const r = hole.radius;
+        hole.mask.scale.set(r, r, 1); hole.mask.position.set(hole.x, 0.01, hole.z);
+        hole.tunnel.scale.set(r, 1, r); hole.tunnel.position.set(hole.x, -50, hole.z);
+        hole.ring.scale.set(r, r, 1); hole.ring.position.set(hole.x, 0.05, hole.z);
+        
+        hole.sawBladeGroup.scale.set(r, 1, r); 
+        hole.sawBladeGroup.position.set(hole.x, 0, hole.z); 
+
+        hole.minerGroup.scale.set(r * 0.8, r * 0.8, r * 0.8); 
+        
+        // 💡 조종사 위치는 구멍 왼쪽(-X)
+        hole.minerGroup.position.set(hole.x - (r * 1.3), 0, hole.z); 
+        // 💡 조종사 방향 수정: 구멍 내부(+X)를 완벽하게 바라보게 회전
+        hole.minerGroup.rotation.y = -Math.PI / 2; 
+
+        const nameScale = 1 + Math.max(0, (r - 1.5)) * 0.5; hole.idSprite.scale.set(6 * nameScale, 1.28 * nameScale, 1);
+        hole.idSprite.position.set(hole.x, 2.0 + (r * 0.2), hole.z - (hole.isPlayer ? -(r + 2.5) : -(r + 1.5)));
+    }
+
+    function killHole(victim, predator) {
+        victim.isDead = true;
+        scene.remove(victim.mask); scene.remove(victim.tunnel); scene.remove(victim.ring);
+        scene.remove(victim.sawBladeGroup); scene.remove(victim.minerGroup);
+        if(victim.idSprite) scene.remove(victim.idSprite);
+        
+        let currentArea = Math.PI * Math.pow(predator.radius, 2); let finalMultiplier = (0.8 + (predator.radius * 0.15)) * (predator.isPlayer ? 1.2 : 1.0);
+        predator.radius = Math.sqrt((currentArea + (Math.PI * Math.pow(victim.radius, 2) * finalMultiplier)) / Math.PI); updateHoleVisuals(predator);
+        addKillLog(predator.name, predator.color, victim.name, victim.color); if (victim.isPlayer) endGame("EATEN BY " + predator.name, true);
+    }
+
+    function updateLeaderboard() { let sortedHoles = [...holes].filter(h => !h.isDead).sort((a, b) => b.radius - a.radius); let html = ''; sortedHoles.forEach((h, index) => { let colorStr = '#' + h.color.toString(16).padStart(6, '0'); html += `<div class="rank-item" style="color: ${h.isPlayer ? '#fff' : '#aaa'}"><span><span class="rank-color" style="background:${colorStr}"></span>${index+1}. ${h.name}</span><span>${(h.radius * 10).toFixed(0)}</span></div>`; }); document.getElementById('leaderboard').innerHTML = html; return sortedHoles; }
+
+    function endGame(title, isEaten) { if(isGameOver) return; isPlaying = false; isGameOver = true; clearInterval(respawnInterval); let sorted = updateLeaderboard(); let myRank = sorted.findIndex(h => h.isPlayer) + 1; window.lastGameWon = (!isEaten && myRank === 1); let playerHole = holes.find(h => h.isPlayer); let finalScore = playerHole ? Math.floor(playerHole.radius * 10) : 0; window.parent.postMessage({ type: window.lastGameWon ? 'GAME_CLEAR' : 'GAME_OVER', score: finalScore }, '*'); const titleEl = document.getElementById('gameOverTitle'); if (window.lastGameWon) { titleEl.innerText = "VICTORY!"; titleEl.style.color = "#f1c40f"; } else { titleEl.innerText = isEaten ? title : "GAME OVER"; titleEl.style.color = "#e74c3c"; } document.getElementById('finalRank').innerText = `Rank: ${myRank > 0 ? myRank : "Eliminated"}`; document.getElementById('finalScore').innerText = `Score: ${finalScore}`; document.getElementById('gameOverScreen').style.display = 'flex'; }
+
+    function animate() {
+        requestAnimationFrame(animate); const dt = Math.min(clock.getDelta(), 0.1); if (!isPlaying || isGameOver) { renderer.render(scene, camera); return; }
+        const fpsMultiplier = dt * 60; const container = document.getElementById('gameContainer');
+        for (let i = floatingTexts.length - 1; i >= 0; i--) { let ft = floatingTexts[i]; ft.life -= dt * 1.5; ft.y += dt * 8; if (ft.life <= 0) { ft.el.remove(); floatingTexts.splice(i, 1); continue; } let pos = new THREE.Vector3(ft.x, ft.y, ft.z).project(camera); if (pos.z < 1) { ft.el.style.left = (pos.x * containerHalfW + containerHalfW) + 'px'; ft.el.style.top = -(pos.y * containerHalfH - containerHalfH) + 'px'; ft.el.style.opacity = ft.life; ft.el.style.display = 'block'; } else { ft.el.style.display = 'none'; } }
+        
+        holes.forEach(hole => { if(!hole.isDead) hole.sawBladeGroup.rotation.y += Math.PI * dt; });
+
+        for (let obj of eatableObjects) { if (!obj.userData.isFalling) { if (obj.userData.type === 'cart') { let speed = 15.0 * dt; let nextX = obj.position.x + obj.userData.moveDirX * speed; let nextZ = obj.position.z + obj.userData.moveDirZ * speed; if (Math.abs(nextX) > MAP_LIMIT) obj.userData.moveDirX *= -1; else if (Math.abs(nextZ) > MAP_LIMIT) obj.userData.moveDirZ *= -1; else { obj.position.x = nextX; obj.position.z = nextZ; } } else if (obj.userData.isMole) { let dx = obj.userData.targetX - obj.position.x; let dz = obj.userData.targetZ - obj.position.z; let dist = Math.sqrt(dx*dx + dz*dz); obj.children[1].position.y = Math.sin(clock.getElapsedTime() * 20) * 0.05; if (dist < 1.0) { obj.userData.targetX = obj.position.x + (Math.random() - 0.5) * 15; obj.userData.targetZ = obj.position.z + (Math.random() - 0.5) * 15; } else { let moveX = (dx/dist) * 3.0 * dt; let moveZ = (dz/dist) * 3.0 * dt; let nextX = obj.position.x + moveX; let nextZ = obj.position.z + moveZ; if (Math.abs(nextX) > MAP_LIMIT || Math.abs(nextZ) > MAP_LIMIT) { obj.userData.targetX = obj.position.x - dx; obj.userData.targetZ = obj.position.z - dz; continue; } let hitObstacle = false; for (let other of eatableObjects) { if (other.userData.isMole || other.userData.isFalling) continue; let odx = other.position.x - nextX; let odz = other.position.z - nextZ; if (Math.sqrt(odx*odx + odz*odz) < (obj.userData.radius + other.userData.radius)) { hitObstacle = true; break; } } if (!hitObstacle) { obj.position.x = nextX; obj.position.z = nextZ; obj.children[1].rotation.y = Math.atan2(dx, dz); } else { obj.userData.targetX = obj.position.x + (Math.random() - 0.5) * 10; obj.userData.targetZ = obj.position.z + (Math.random() - 0.5) * 10; } } } } }
+        if (holes.filter(h => !h.isDead).length === 1 && holes.find(h => h.isPlayer && !h.isDead)) { endGame("SURVIVOR!", false); return; }
+        let diff = getDifficulty(internalStage); let aiSpeedMult = (diff === "Normal") ? 0.9 : 1.0; let playerHole = holes.find(h => h.isPlayer);
+        
+        holes.forEach(hole => { 
+            if (hole.isDead) return; 
+            let currentSpeed = baseSpeed + Math.max(0, (hole.radius - 1.5)) * 1.0; let aiVision = hole.radius > 6.0 ? 150 : (diff === "Normal" ? 45 : 120); 
+            if (hole.isPlayer) { 
+                let moveX = 0, moveZ = 0; 
+                if (usingKeyboard) { if(keys.w || keys.ArrowUp) moveZ = -1; if(keys.s || keys.ArrowDown) moveZ = 1; if(keys.a || keys.ArrowLeft) moveX = -1; if(keys.d || keys.ArrowRight) moveX = 1; } 
+                else if (usingTouch) { moveX = touchDirX; moveZ = touchDirZ; } 
+                
+                if (moveX !== 0 || moveZ !== 0) { 
+                    let mag = Math.sqrt(moveX*moveX + moveZ*moveZ); 
+                    hole.moveDir.x = moveX / mag; hole.moveDir.z = moveZ / mag; 
+                    hole.x += (hole.moveDir.x) * currentSpeed * dt; hole.z += (hole.moveDir.z) * currentSpeed * dt; 
+                } else {
+                    hole.moveDir.x = 0; hole.moveDir.z = 0;
+                }
+                
+                hole.x = Math.max(-MAP_LIMIT, Math.min(MAP_LIMIT, hole.x)); hole.z = Math.max(-MAP_LIMIT, Math.min(MAP_LIMIT, hole.z)); 
+                let idealCamX = hole.x; let idealCamZ = hole.z + 18 + hole.radius * 1.8; let idealCamY = 22 + hole.radius * 2.5; 
+                camera.position.x += (idealCamX - camera.position.x) * 0.1 * fpsMultiplier; camera.position.z += (idealCamZ - camera.position.z) * 0.1 * fpsMultiplier; camera.position.y += (idealCamY - camera.position.y) * 0.1 * fpsMultiplier; camera.lookAt(camera.position.x, 0, camera.position.z - (camera.position.y * 0.82)); 
+            } else { 
+                let needsNewTarget = false; let aggroEngaged = false; 
+                if ((hole.isAggressive || hole.radius > 6.0) && playerHole && !playerHole.isDead) { let distToPlayer = Math.sqrt((playerHole.x - hole.x)**2 + (playerHole.z - hole.z)**2); if (distToPlayer < aiVision && playerHole.radius < hole.radius * 0.9) { hole.currentTarget = playerHole; hole.currentTargetType = 'hole'; aggroEngaged = true; } } 
+                if (!aggroEngaged) { if (!hole.currentTarget) needsNewTarget = true; else if (hole.currentTargetType === 'food') { if (!eatableObjects.find(obj => obj === hole.currentTarget) || hole.currentTarget.userData.isFalling) needsNewTarget = true; } else if (hole.currentTargetType === 'hole') { if (hole.currentTarget.isDead || hole.radius <= hole.currentTarget.radius * 1.1) needsNewTarget = true; } if (needsNewTarget) { let closest = null, minDist = Infinity, cType = null; if (diff === "Hard" || hole.radius > 6.0) { holes.forEach(other => { if (!other.isDead && other !== hole && hole.radius > other.radius * 1.15) { let d = Math.sqrt((other.x - hole.x)**2 + (other.z - hole.z)**2); if (d < minDist && d < aiVision) { minDist = d; closest = other; cType = 'hole'; } } }); } if (!closest) { for (let obj of eatableObjects) { if (!obj.userData.isFalling && obj.userData.radius < hole.radius * 0.9) { let dist = Math.sqrt((obj.position.x - hole.x)**2 + (obj.position.z - hole.z)**2); if (dist < minDist && dist < aiVision) { minDist = dist; closest = obj; cType = 'food'; } } } } if (closest) { hole.currentTarget = closest; hole.currentTargetType = cType; } else { hole.targetX = Math.max(-MAP_LIMIT, Math.min(MAP_LIMIT, hole.x + (Math.random() - 0.5) * 50)); hole.targetZ = Math.max(-MAP_LIMIT, Math.min(MAP_LIMIT, hole.z + (Math.random() - 0.5) * 50)); hole.currentTarget = null; } } } 
+                if (hole.currentTarget) { if (hole.currentTargetType === 'food') { hole.targetX = hole.currentTarget.position.x; hole.targetZ = hole.currentTarget.position.z; } else { hole.targetX = hole.currentTarget.x; hole.targetZ = hole.currentTarget.z; } } 
+                let dx = hole.targetX - hole.x; let dz = hole.targetZ - hole.z; let dist = Math.sqrt(dx*dx + dz*dz); 
+                
+                if (dist > 0.5) { 
+                    hole.moveDir.x = dx / dist; hole.moveDir.z = dz / dist; 
+                    let s = currentSpeed * aiSpeedMult * (hole.radius > 6.0 ? 1.15 : 1.0); 
+                    hole.x += (hole.moveDir.x) * s * dt; hole.z += (hole.moveDir.z) * s * dt; 
+                } else {
+                    hole.moveDir.x = 0; hole.moveDir.z = 0;
+                    if (hole.currentTargetType === 'food') hole.currentTarget = null; 
+                }
+                hole.x = Math.max(-MAP_LIMIT, Math.min(MAP_LIMIT, hole.x)); hole.z = Math.max(-MAP_LIMIT, Math.min(MAP_LIMIT, hole.z)); 
+            } 
+            
+            let lerpSpeed = 10 * dt;
+            let dirX = hole.moveDir.x; let dirZ = hole.moveDir.z;
+            
+            // 💡 광부 기계의 회전값을 반영한 완벽한 로컬 이동 방향 계산
+            let cosR = Math.cos(hole.minerGroup.rotation.y);
+            let sinR = Math.sin(hole.minerGroup.rotation.y);
+            let localDirX = dirX * cosR + dirZ * sinR;
+            let localDirZ = -dirX * sinR + dirZ * cosR;
+            
+            // 레버 조작 및 팔 연동
+            let targetLeverL = (-localDirZ * 0.4) + (localDirX * 0.3);
+            let targetLeverR = (-localDirZ * 0.4) - (localDirX * 0.3);
+            hole.animParts.leverGroupL.rotation.x += (targetLeverL - hole.animParts.leverGroupL.rotation.x) * lerpSpeed;
+            hole.animParts.leverGroupR.rotation.x += (targetLeverR - hole.animParts.leverGroupR.rotation.x) * lerpSpeed;
+            hole.animParts.armL.rotation.x = hole.animParts.leverGroupL.rotation.x * 0.8 - 0.2;
+            hole.animParts.armR.rotation.x = hole.animParts.leverGroupR.rotation.x * 0.8 - 0.2;
+
+            // 이동 시 관성에 의한 몸의 기울임
+            let targetBodyX = -localDirZ * 0.2; 
+            let targetBodyZ = localDirX * 0.2;  
+            hole.animParts.upperBody.rotation.x += (targetBodyX - hole.animParts.upperBody.rotation.x) * lerpSpeed;
+            hole.animParts.upperBody.rotation.z += (targetBodyZ - hole.animParts.upperBody.rotation.z) * lerpSpeed;
+
+            // 이동/목표를 향한 시선 처리
+            let lookAngle = Math.PI; 
+            if (dirX !== 0 || dirZ !== 0) {
+                lookAngle = Math.atan2(dirX, dirZ);
+            } else if (hole.currentTarget) {
+                let tx = hole.currentTarget.position ? hole.currentTarget.position.x : hole.currentTarget.x;
+                let tz = hole.currentTarget.position ? hole.currentTarget.position.z : hole.currentTarget.z;
+                lookAngle = Math.atan2(tx - hole.x, tz - hole.z);
+            }
+            let targetHeadY = lookAngle - hole.minerGroup.rotation.y - Math.PI; // 기본 방향 보정
+            while(targetHeadY > Math.PI) targetHeadY -= Math.PI * 2;
+            while(targetHeadY < -Math.PI) targetHeadY += Math.PI * 2;
+            targetHeadY = Math.max(-Math.PI/2.5, Math.min(Math.PI/2.5, targetHeadY)); // 목 돌아가는 한계
+            hole.animParts.headGroup.rotation.y += (targetHeadY - hole.animParts.headGroup.rotation.y) * lerpSpeed;
+        });
+
+        for (let i = 0; i < holes.length; i++) { for (let j = i + 1; j < holes.length; j++) { if (holes[i].isDead || holes[j].isDead) continue; let h1 = holes[i], h2 = holes[j]; let dx = h1.x - h2.x, dz = h1.z - h2.z; let dist = Math.sqrt(dx*dx + dz*dz); let touchDist = h1.radius + h2.radius; if (dist < touchDist * 0.9) { if (h1.radius > h2.radius * 1.1) killHole(h2, h1); else if (h2.radius > h1.radius * 1.1) killHole(h1, h2); else { let overlap = touchDist * 0.9 - dist; if (dist > 0.1) { let pushX = (dx / dist) * overlap * 0.2 * fpsMultiplier; let pushZ = (dz / dist) * overlap * 0.2 * fpsMultiplier; h1.x += pushX; h1.z += pushZ; h2.x -= pushX; h2.z -= pushZ; } } } } }
+        holes.forEach(hole => { if(!hole.isDead) updateHoleVisuals(hole); });
+        for (let i = eatableObjects.length - 1; i >= 0; i--) { const obj = eatableObjects[i]; if (!obj.userData.isFalling) { for (let hole of holes) { if (hole.isDead) continue; if (Math.sqrt((obj.position.x - hole.x)**2 + (obj.position.z - hole.z)**2) < hole.radius * 0.75 && obj.userData.radius < hole.radius * 0.9) { obj.userData.isFalling = true; obj.userData.fallingInto = hole; obj.userData.tumbleX = (Math.random() - 0.5) * 2; obj.userData.tumbleZ = (Math.random() - 0.5) * 2; let indicator = obj.children.find(c => c.material === cachedMaterials.indicator); if(indicator) indicator.visible = false; break; } } } else { let targetHole = obj.userData.fallingInto; let hX = targetHole && !targetHole.isDead ? targetHole.x : obj.position.x; let hZ = targetHole && !targetHole.isDead ? targetHole.z : obj.position.z; obj.userData.velY -= 30 * dt; obj.position.y += obj.userData.velY * dt; obj.position.x += (hX - obj.position.x) * 0.08 * fpsMultiplier; obj.position.z += (hZ - obj.position.z) * 0.08 * fpsMultiplier; obj.rotation.x += obj.userData.tumbleX * dt; obj.rotation.z += obj.userData.tumbleZ * dt; obj.scale.multiplyScalar(Math.max(0.1, 1.0 - 0.8 * dt)); if (obj.position.y < -60) { if (targetHole && !targetHole.isDead) { let currentArea = Math.PI * Math.pow(targetHole.radius, 2); targetHole.radius = Math.sqrt((currentArea + (Math.PI * Math.pow(obj.userData.radius, 2) * (targetHole.isPlayer ? (0.2 + targetHole.radius * 0.05) * 1.1 : (0.2 + targetHole.radius * 0.05)))) / Math.PI); updateHoleVisuals(targetHole); if (targetHole.isPlayer) { let score = Math.floor(obj.userData.radius * 10); spawnFloatingText("+" + score, targetHole.x, 2.0, targetHole.z); } } holes.forEach(aiHole => { if (aiHole.currentTarget === obj) { aiHole.currentTarget = null; } }); scene.remove(obj); eatableObjects.splice(i, 1); } } }
+        if(clock.getElapsedTime() % 0.5 < 0.1) updateLeaderboard(); renderer.render(scene, camera);
+    }
+    init(); 
+</script>
+</body>
+</html>
