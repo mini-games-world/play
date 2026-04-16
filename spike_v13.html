@@ -46,7 +46,7 @@ button:active { transform: scale(0.95); }
             <span style="color:#44ffff; text-shadow:0 0 15px #44ffff; font-size:14px; letter-spacing:4px;">DRAG TO NAVIGATE THE GRID</span><br><br>
             <span style="color:#0055ff; text-shadow:0 0 15px #0055ff;">◈ BLUE = BUFF 🚀</span><br>
             <span style="color:#cc4466; text-shadow:0 0 15px #cc4466;">◈ DARK RED = DEBUFF 🐢</span><br>
-            <span style="color:#ffffff; text-shadow:0 0 15px #ffffff;">◈ RAINBOW STAR = OVERRIDE 🔥</span>
+            <span style="color:#ffffff; text-shadow:0 0 15px #ffffff;">◈ RAINBOW STAR = FEVER 🔥</span>
         </p>
         <h1 id="countdown" style="font-size:100px; color:#44ffff; text-shadow:0 0 20px #44ffff, 0 0 60px #0088ff; margin:0; letter-spacing:8px;"></h1>
     </div>
@@ -545,7 +545,7 @@ class SpecialBlock {
     triggerEffect() {
         if (this.type === 'fever') {
             createParticles(this.x, this.y, "#ffffff", 50); playSfx('fever');
-            floatingTexts.push(new FloatingText(this.x, this.y - 20, "SYSTEM OVERRIDE! ◈", "#ffffff"));
+            floatingTexts.push(new FloatingText(this.x, this.y - 20, "FEVER MODE! ◈", "#ffffff"));
             feverTimer = 180; for(let i=0; i<12; i++) balls.push(new SpikeBall(balls.length)); for(let i=0; i<30; i++) enemies.push(new Enemy(false));
         } else {
             createParticles(this.x, this.y, ['speed_up','aura','magnet','titan'].includes(this.type) ? "#0055ff" : "#aa2244", 30);
@@ -785,7 +785,7 @@ function endGame() {
             <span style="color:#44ffff; text-shadow:0 0 15px #44ffff; font-size:14px; letter-spacing:4px;">DRAG TO NAVIGATE THE GRID</span><br><br>
             <span style="color:#0055ff; text-shadow:0 0 15px #0055ff;">◈ BLUE = BUFF 🚀</span><br>
             <span style="color:#cc4466; text-shadow:0 0 15px #cc4466;">◈ DARK RED = DEBUFF 🐢</span><br>
-            <span style="color:#ffffff; text-shadow:0 0 15px #ffffff;">◈ RAINBOW STAR = OVERRIDE 🔥</span>
+            <span style="color:#ffffff; text-shadow:0 0 15px #ffffff;">◈ RAINBOW STAR = FEVER 🔥</span>
         `;
         countdownEl.style.display = 'block'; countdownEl.style.fontSize = "100px"; countdownEl.style.letterSpacing = "8px";
         startCountdown();
