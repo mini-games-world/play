@@ -11,12 +11,11 @@
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&display=swap');
 *, *::before, *::after { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-html, body { width: 100%; height: 100%; height: -webkit-fill-available; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
-/* 수정 1: flex 정렬 제거. 게임 화면(wrapper)을 직접 정중앙에 고정시킵니다. */
-body { margin: 0; background: #020210; overflow: hidden; touch-action: none; font-family: 'Orbitron', monospace, sans-serif; color: white; }
+/* 수정 1: 확실한 영역 확보를 위해 html, body 강제 100% 할당 */
+html, body { width: 100%; height: 100%; margin: 0; padding: 0; background: #020210; overflow: hidden; touch-action: none; font-family: 'Orbitron', monospace, sans-serif; color: white; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
 
-/* 수정 2: position absolute와 translate를 이용해 항상 정확히 한가운데 위치하도록 수정 */
-#game-wrapper { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 712px; height: 852px; background: #040418; overflow: hidden; box-shadow: 0 0 80px rgba(0, 255, 255, 0.4), 0 0 160px rgba(180, 0, 255, 0.3); border: 1px solid rgba(0, 255, 255, 0.4); }
+/* 수정 2: CSS 50% 정렬을 완전히 제거하고 좌측 상단(top:0, left:0) 기준으로 묶음 */
+#game-wrapper { position: absolute; top: 0; left: 0; width: 712px; height: 852px; background: #040418; overflow: hidden; box-shadow: 0 0 80px rgba(0, 255, 255, 0.4), 0 0 160px rgba(180, 0, 255, 0.3); border: 1px solid rgba(0, 255, 255, 0.4); transform-origin: top left; }
 
 #three-container { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; }
 #blind-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 3; pointer-events: none; opacity: 0; transition: opacity 0.3s; }
@@ -249,19 +248,21 @@ function createRoom() {
     [floorWall, ceilingWall, right, left, front, back].forEach(w => roomGroup.add(w));
 }
 
-// 수정 3: 화면 창의 100%를 안전하게 덮으면서 가운데 정렬되도록 로직 수정
-// (터치 감도 조작 버그를 일으키던 let scale = ... 덮어쓰기 문제도 수정함)
+// 수정 3: CSS % 정렬에 의존하지 않고, JS가 화면 크기를 직접 측정하여 정확한 픽셀 오프셋을 계산합니다.
 function resize() {
     const wrapper = document.getElementById('game-wrapper');
-    // iframe 혹은 현재 창의 내부 사이즈 가져오기
-    const ww = window.innerWidth;
-    const wh = window.innerHeight;
+    const ww = window.innerWidth || document.documentElement.clientWidth;
+    const wh = window.innerHeight || document.documentElement.clientHeight;
     
-    // 화면 크기에 맞게 배율 계산 (가로/세로 중 화면에 딱 차는 비율)
     scale = Math.min(ww / mapW, wh / mapH);
     
-    // CSS translate(-50%, -50%)를 사용하므로 transform-origin이 필요 없이 완벽히 정중앙 축소/확대가 됨
-    wrapper.style.transform = `translate(-50%, -50%) scale(${scale})`;
+    // JS로 상단, 좌측 여백(offset)을 픽셀 단위로 정확하게 계산
+    const offsetX = Math.max(0, (ww - (mapW * scale)) / 2);
+    const offsetY = Math.max(0, (wh - (mapH * scale)) / 2);
+    
+    // 강제로 좌측 상단 기준(0 0)으로 스케일과 이동을 적용
+    wrapper.style.transformOrigin = '0 0';
+    wrapper.style.transform = `translate(${offsetX}px, ${offsetY}px) scale(${scale})`;
 }
 
 window.addEventListener('resize', resize); window.addEventListener('orientationchange', () => setTimeout(resize, 300)); if (window.visualViewport) window.visualViewport.addEventListener('resize', resize);
@@ -287,6 +288,139 @@ let isDevMode = false, isInvincible = false, currentPhase = 1, slowMoFactor = 1.
 const AudioContext = window.AudioContext || window.webkitAudioContext;
 let audioCtx;
 function initAudio() { if (!audioCtx) audioCtx = new AudioContext(); if (audioCtx.state === 'suspended') audioCtx.resume(); }
+
+// ======================= 자체 생성 루핑 BGM 코드 =======================
+let bgmBuffer = null;
+let bgmSource = null;
+let isBgmPlaying = false;
+
+async function generateBGM() {
+    if (!audioCtx) initAudio();
+    const sampleRate = audioCtx.sampleRate || 44100;
+    const bpm = 135; 
+    const beatLen = 60 / bpm;
+    const totalBeats = 32; 
+    const duration = totalBeats * beatLen;
+    const offlineCtx = new OfflineAudioContext(1, sampleRate * duration, sampleRate);
+
+    const mToF = (m) => 440 * Math.pow(2, (m - 69) / 12);
+
+    const noiseBuffer = offlineCtx.createBuffer(1, sampleRate * 1, sampleRate);
+    const noiseData = noiseBuffer.getChannelData(0);
+    for (let i = 0; i < noiseBuffer.length; i++) noiseData[i] = Math.random() * 2 - 1;
+
+    const bassNotes = [36, 36, 36, 48, 36, 36, 36, 46, 36, 36, 36, 45, 36, 36, 43, 41];
+    
+    for (let i = 0; i < totalBeats * 4; i++) {
+        const t = i * (beatLen / 4);
+        
+        if (i % 4 === 0) {
+            let kickOsc = offlineCtx.createOscillator();
+            let kickGain = offlineCtx.createGain();
+            kickOsc.frequency.setValueAtTime(150, t);
+            kickOsc.frequency.exponentialRampToValueAtTime(10, t + 0.4);
+            kickGain.gain.setValueAtTime(0.8, t);
+            kickGain.gain.exponentialRampToValueAtTime(0.01, t + 0.4);
+            kickOsc.connect(kickGain); kickGain.connect(offlineCtx.destination);
+            kickOsc.start(t); kickOsc.stop(t + 0.4);
+        }
+        
+        if (i % 2 !== 0 || i % 4 === 2) {
+            let hatSrc = offlineCtx.createBufferSource();
+            hatSrc.buffer = noiseBuffer;
+            let hatFilter = offlineCtx.createBiquadFilter();
+            hatFilter.type = 'highpass';
+            hatFilter.frequency.value = 6000;
+            let hatGain = offlineCtx.createGain();
+            hatGain.gain.setValueAtTime(i % 4 === 2 ? 0.2 : 0.1, t);
+            hatGain.gain.exponentialRampToValueAtTime(0.01, t + 0.1);
+            hatSrc.connect(hatFilter); hatFilter.connect(hatGain); hatGain.connect(offlineCtx.destination);
+            hatSrc.start(t); hatSrc.stop(t + 0.1);
+        }
+
+        if (i % 8 === 4) {
+            let snSrc = offlineCtx.createBufferSource();
+            snSrc.buffer = noiseBuffer;
+            let snFilter = offlineCtx.createBiquadFilter();
+            snFilter.type = 'bandpass';
+            snFilter.frequency.value = 1500;
+            let snGain = offlineCtx.createGain();
+            snGain.gain.setValueAtTime(0.4, t);
+            snGain.gain.exponentialRampToValueAtTime(0.01, t + 0.25);
+            snSrc.connect(snFilter); snFilter.connect(snGain); snGain.connect(offlineCtx.destination);
+            snSrc.start(t); snSrc.stop(t + 0.25);
+        }
+        
+        let bNote = bassNotes[i % 16] + (Math.floor(i / 64) % 2 === 1 ? 5 : 0);
+        let bOsc = offlineCtx.createOscillator();
+        bOsc.type = 'sawtooth';
+        bOsc.frequency.value = mToF(bNote);
+        let bFilter = offlineCtx.createBiquadFilter();
+        bFilter.type = 'lowpass';
+        bFilter.Q.value = 3;
+        bFilter.frequency.setValueAtTime(100, t);
+        bFilter.frequency.exponentialRampToValueAtTime(1500, t + 0.05);
+        bFilter.frequency.exponentialRampToValueAtTime(100, t + (beatLen/4) - 0.01);
+        let bGain = offlineCtx.createGain();
+        bGain.gain.setValueAtTime(0.25, t);
+        bGain.gain.exponentialRampToValueAtTime(0.01, t + (beatLen/4) - 0.01);
+        bOsc.connect(bFilter); bFilter.connect(bGain); bGain.connect(offlineCtx.destination);
+        bOsc.start(t); bOsc.stop(t + (beatLen/4));
+    }
+
+    const arpNotes = [60, 63, 67, 72, 75, 72, 67, 63];
+    for (let i = 0; i < totalBeats * 4; i++) {
+        if (Math.floor(i / 32) % 2 === 0) continue; 
+        if (i % 4 === 0) continue; 
+        const t = i * (beatLen / 4);
+        let aNote = arpNotes[i % 8] + (Math.floor(i / 64) % 2 === 1 ? 5 : 0);
+        let aOsc = offlineCtx.createOscillator();
+        aOsc.type = 'square';
+        aOsc.frequency.value = mToF(aNote + 12); 
+        let aGain = offlineCtx.createGain();
+        aGain.gain.setValueAtTime(0.05, t);
+        aGain.gain.exponentialRampToValueAtTime(0.001, t + 0.15);
+        aOsc.connect(aGain); aGain.connect(offlineCtx.destination);
+        aOsc.start(t); aOsc.stop(t + 0.15);
+    }
+
+    bgmBuffer = await offlineCtx.startRendering();
+}
+
+function tryPlayBGM() {
+    if (!audioCtx) initAudio();
+    if (isBgmPlaying) return;
+    if (!bgmBuffer) {
+        generateBGM().then(() => {
+            if (!isBgmPlaying && active) playBGMBuffer();
+        });
+    } else {
+        playBGMBuffer();
+    }
+}
+
+function playBGMBuffer() {
+    if (isBgmPlaying || !bgmBuffer || !audioCtx) return;
+    bgmSource = audioCtx.createBufferSource();
+    bgmSource.buffer = bgmBuffer;
+    bgmSource.loop = true; 
+    let masterGain = audioCtx.createGain();
+    masterGain.gain.value = 0.35; 
+    bgmSource.connect(masterGain);
+    masterGain.connect(audioCtx.destination);
+    bgmSource.start();
+    isBgmPlaying = true;
+}
+
+function stopBGM() {
+    if (bgmSource) {
+        bgmSource.stop();
+        bgmSource.disconnect();
+        isBgmPlaying = false;
+    }
+}
+// ====================================================================
+
 function playTone(freq, type, duration, vol = 0.05) {
     if (!audioCtx) return; const osc = audioCtx.createOscillator(); const gain = audioCtx.createGain();
     osc.type = type; osc.frequency.setValueAtTime(freq, audioCtx.currentTime); gain.gain.setValueAtTime(vol, audioCtx.currentTime);
@@ -311,9 +445,6 @@ function playSfx(type) {
             osc.connect(gain); gain.connect(audioCtx.destination); osc.start(); osc.stop(audioCtx.currentTime + 2.5); break;
     }
 }
-
-const bgm = new Audio('The_Guardian_s_Name.mp3'); bgm.loop = true; bgm.volume = 0.4;
-function tryPlayBGM() { try { if (bgm.paused) bgm.play().catch(e => console.log('BGM wait')); } catch (e) { } }
 
 window.addEventListener('keydown', (e) => {
     if (e.key.toLowerCase() === 'd') { isDevMode = !isDevMode; floatingTexts.push(new FloatingText(mapW / 2, 100, "DEV:" + (isDevMode ? "ON" : "OFF"), "#0ff", true)); }
