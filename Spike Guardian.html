@@ -7,7 +7,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-fullscreen">
     <title>Spike Guardian 3D - Ultimate Edition</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="three.min.js"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&display=swap');
 *, *::before, *::after { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -248,7 +248,6 @@ function createRoom() {
     [floorWall, ceilingWall, right, left, front, back].forEach(w => roomGroup.add(w));
 }
 
-// 수정 3: CSS % 정렬에 의존하지 않고, JS가 화면 크기를 직접 측정하여 정확한 픽셀 오프셋을 계산합니다.
 function resize() {
     const wrapper = document.getElementById('game-wrapper');
     const ww = window.innerWidth || document.documentElement.clientWidth;
@@ -256,13 +255,14 @@ function resize() {
     
     scale = Math.min(ww / mapW, wh / mapH);
     
-    // JS로 상단, 좌측 여백(offset)을 픽셀 단위로 정확하게 계산
     const offsetX = Math.max(0, (ww - (mapW * scale)) / 2);
     const offsetY = Math.max(0, (wh - (mapH * scale)) / 2);
     
-    // 강제로 좌측 상단 기준(0 0)으로 스케일과 이동을 적용
     wrapper.style.transformOrigin = '0 0';
     wrapper.style.transform = `translate(${offsetX}px, ${offsetY}px) scale(${scale})`;
+
+    uiCanvas.width = mapW;
+    uiCanvas.height = mapH;
 }
 
 window.addEventListener('resize', resize); window.addEventListener('orientationchange', () => setTimeout(resize, 300)); if (window.visualViewport) window.visualViewport.addEventListener('resize', resize);

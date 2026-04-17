@@ -113,8 +113,6 @@
 </head>
 <body>
 
-<audio id="gameBgm" src="Iron_Against_Stone.mp3" loop preload="auto"></audio>
-
 <div id="gameContainer">
     <div id="mainMenuScreen">
         <div id="gameTitle">Mine Hole<br><span style="font-size: 24px; color: #e74c3c;">Eat'em ALL</span></div>
@@ -143,7 +141,7 @@
     </div>
 </div>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="three.min.js"></script>
 
 <script>
     const MAX_OBJECTS = { mole: 250, cart: 60, rock: 350, gem: 300, diamond: 45 };
@@ -174,6 +172,9 @@
     let cachedGeos = {};
     let cachedEdges = {};
     let cachedMaterials = {};
+    
+    let audioCtx;
+    let bgmSource;
 
     function initAssets() {
         cachedGeos = {
@@ -335,6 +336,66 @@
 
         window.addEventListener('resize', updateScreenContext); animate();
     }
+    
+    // 💡 자체 생성형 BGM 함수 추가
+    function playProceduralBGM() {
+        if (!audioCtx) {
+            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        }
+        if (audioCtx.state === 'suspended') {
+            audioCtx.resume();
+        }
+        if (bgmSource) return;
+        
+        const sampleRate = audioCtx.sampleRate;
+        const buffer = audioCtx.createBuffer(1, sampleRate * 4, sampleRate);
+        const data = buffer.getChannelData(0);
+        
+        const bassNotes = [130.81, 155.56, 174.61, 196.00]; 
+        
+        for (let i = 0; i < data.length; i++) {
+            const time = i / sampleRate;
+            
+            const step = Math.floor(time * 8) % 32;
+            let freq = 0;
+            if (step % 4 === 0) freq = bassNotes[0];
+            else if (step % 8 === 3) freq = bassNotes[1];
+            else if (step % 16 === 10) freq = bassNotes[2];
+            else if (step % 32 === 28) freq = bassNotes[3];
+            
+            let synth = 0;
+            if (freq > 0) {
+                const noteTime = time % 0.125;
+                const env = Math.exp(-15 * noteTime);
+                synth = (Math.sin(2 * Math.PI * freq * time) > 0 ? 0.1 : -0.1) * env;
+            }
+            
+            const kickTime = time % 0.5;
+            const kickEnv = Math.exp(-20 * kickTime);
+            const kick = Math.sin(2 * Math.PI * 150 * kickTime * kickEnv) * 0.3 * kickEnv;
+            
+            const hatTime = (time + 0.25) % 0.5;
+            const hatEnv = Math.exp(-30 * hatTime);
+            const hat = (Math.random() * 2 - 1) * 0.05 * hatEnv;
+            
+            data[i] = synth + kick + hat;
+        }
+        
+        bgmSource = audioCtx.createBufferSource();
+        bgmSource.buffer = buffer;
+        bgmSource.loop = true;
+        
+        const compressor = audioCtx.createDynamicsCompressor();
+        compressor.threshold.setValueAtTime(-20, audioCtx.currentTime);
+        compressor.knee.setValueAtTime(10, audioCtx.currentTime);
+        compressor.ratio.setValueAtTime(4, audioCtx.currentTime);
+        compressor.attack.setValueAtTime(0, audioCtx.currentTime);
+        compressor.release.setValueAtTime(0.2, audioCtx.currentTime);
+        
+        bgmSource.connect(compressor);
+        compressor.connect(audioCtx.destination);
+        bgmSource.start();
+    }
 
     function startMatching(didWinPrevious) {
         if (didWinPrevious) internalStage++; document.getElementById('gameOverScreen').style.display = 'none'; document.getElementById('ui').style.display = 'none';
@@ -342,11 +403,8 @@
         document.getElementById('mainMenuScreen').style.display = 'none';
         const matchingScreen = document.getElementById('matchingScreen'); const matchingCount = document.getElementById('matchingCount'); matchingScreen.style.display = 'flex';
 
-        // 💡 게임 시작 시 BGM을 재생하도록 설정
-        const bgm = document.getElementById('gameBgm');
-        if (bgm && bgm.paused) {
-            bgm.play().catch(e => console.warn("브라우저 정책으로 인해 오디오 재생이 차단되었습니다:", e));
-        }
+        // 💡 게임 시작 시 자체 BGM을 재생하도록 변경
+        playProceduralBGM();
 
         let count = 3; matchingCount.innerText = count;
         let countdownInterval = setInterval(() => { count--; if (count > 0) { matchingCount.innerText = count; } else { clearInterval(countdownInterval); matchingScreen.style.display = 'none'; document.getElementById('ui').style.display = 'block'; resetGame(internalStage); } }, 1000);
