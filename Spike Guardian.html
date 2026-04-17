@@ -593,6 +593,9 @@ class FloatingText {
         this.text = text; this.color = color; this.isBig = isBig;
         this.life = 1.0; this.vy = isBig ? -0.5 : -1.5;
     }
+
+
+
     update() { this.y += this.vy * slowMoFactor; this.life -= (this.isBig ? 0.006 : 0.015) * slowMoFactor; return this.life <= 0; }
     draw() {
         if (isTransitioning) return;
